@@ -395,7 +395,7 @@ namespace CrossLite.QueryBuilder
         /// in the contructor. All WHERE and HAVING paramenters are propery escaped, 
         /// making this command SQL Injection safe.
         /// </summary>
-        public T ExecuteScalar<T>()
+        public T ExecuteScalar<T>() where T : IConvertible
         {
             return Driver.ExecuteScalar<T>(BuildCommand());
         }

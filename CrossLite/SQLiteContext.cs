@@ -235,7 +235,7 @@ namespace CrossLite
         /// set returned by the query. Additional columns or rows are ignored.
         /// </summary>
         /// <param name="Sql">The SQL statement to be executed</param>
-        public T ExecuteScalar<T>(string Sql, params object[] Items)
+        public T ExecuteScalar<T>(string Sql, params object[] Items) where T : IConvertible
         {
             // Create the SQL Command
             using (DbCommand Command = this.CreateCommand(Sql))
@@ -260,7 +260,7 @@ namespace CrossLite
         /// set returned by the query. Additional columns or rows are ignored.
         /// </summary>
         /// <param name="Command">The SQL Command to run on this database</param>
-        public T ExecuteScalar<T>(DbCommand Command)
+        public T ExecuteScalar<T>(DbCommand Command) where T : IConvertible
         {
             // Create the SQL Command
             using (Command)
@@ -273,7 +273,7 @@ namespace CrossLite
 
         #endregion Execute Methods
 
-        #region Read
+        #region Query Methods
 
         /// <summary>
         /// Queries the database, and returns a result set
@@ -400,14 +400,15 @@ namespace CrossLite
         }
 
         /// <summary>
-        /// Peforms a SELECT query on the Entity Type, and returns the results
+        /// Peforms a SELECT query on the Entity Type, and returns the Enumerator
+        /// for the Result set.
         /// </summary>
-        /// <typeparam name="T">The Entity Type</typeparam>
+        /// <typeparam name="TEntity">The Entity Type</typeparam>
         /// <returns></returns>
-        internal IEnumerable<T> Select<T>()
+        internal IEnumerable<TEntity> Select<TEntity>() where TEntity : class
         {
             // Get our Table Mapping
-            Type objType = typeof(T);
+            Type objType = typeof(TEntity);
             TableMapping table = EntityCache.GetTableMap(objType);
             string sql = $"SELECT * FROM `{table.TableName}`;";
 
@@ -420,7 +421,7 @@ namespace CrossLite
                 {
                     // Return each row
                     while (reader.Read())
-                        yield return (T)ConvertToEntity(table, reader);
+                        yield return (TEntity)ConvertToEntity(table, reader);
                 }
 
                 // Cleanup
@@ -428,136 +429,7 @@ namespace CrossLite
             }
         }
 
-        #endregion Read
-
-        #region Create
-
-        /// <summary>
-        /// Inserts a new Entity into the database
-        /// </summary>
-        /// <typeparam name="T">The Entity Type</typeparam>
-        /// <param name="obj"></param>
-        /// <returns>The number of rows affected by this operation</returns>
-        internal int Insert<TEntity>(TEntity obj) where TEntity : class
-        {
-            // Get our Table Mapping
-            Type objType = typeof(TEntity);
-            TableMapping table = EntityCache.GetTableMap(objType);
-            string[] keys = table.CompositeKeys;
-
-            // Generate the SQL
-            InsertQueryBuilder builder = new InsertQueryBuilder(table.TableName, this);
-            foreach (var attribute in table.Columns)
-            {
-                // Grab value
-                object value = attribute.Value.Property.GetValue(obj);
-
-                // Check for auto increments!
-                if (keys.Contains(attribute.Key))
-                {
-                    // Skip inserting Auto Increment fields!
-                    if (attribute.Value.AutoIncrement == true)
-                        continue;
-
-                    // Skip single primary keys that are Integers and do not have a value, 
-                    // This will cause the key to perform an Auto Increment
-                    if (table.HasPrimaryKey && IsNumericType(attribute.Value.Property.PropertyType) && value == null)
-                        continue;
-                }
-
-                // Add attribute to the field list
-                builder.SetField(attribute.Key, value);
-            }
-
-            // Create the SQL Command
-            return builder.Execute();
-        }
-
-        #endregion Create
-
-        #region Update
-
-        /// <summary>
-        /// Updates an Entity in the database, provided none of the Primary
-        /// keys were modified.
-        /// </summary>
-        /// <typeparam name="T">The Entity Type</typeparam>
-        /// <param name="obj"></param>
-        /// <returns>The number of rows affected by this operation</returns>
-        internal int Update<TEntity>(TEntity obj) where TEntity : class
-        {
-            // Get our Table Mapping
-            Type objType = typeof(TEntity);
-            TableMapping table = EntityCache.GetTableMap(objType);
-
-            // Generate the SQL
-            UpdateQueryBuilder builder = new UpdateQueryBuilder(table.TableName, this);
-            builder.SetWhereOperator(LogicOperator.And);
-            foreach (var attribute in table.Columns)
-            {
-                // Check for keys
-                if (table.CompositeKeys.Contains(attribute.Key))
-                    continue;
-
-                object value = attribute.Value.Property.GetValue(obj);
-                builder.SetField(attribute.Key, value);
-            }
-
-            // build the where statement, using primary keys
-            foreach (string keyName in table.CompositeKeys)
-            {
-                PropertyInfo info = table.Columns[keyName].Property;
-                builder.AddWhere(keyName, Comparison.Equals, info.GetValue(obj));
-            }
-
-            // Create the SQL Command
-            return builder.Execute();
-        }
-
-        #endregion Update
-
-        #region Delete
-
-        /// <summary>
-        /// Deletes an Entity from the database
-        /// </summary>
-        /// <typeparam name="T">The Entity Type</typeparam>
-        /// <param name="obj">The entity to remove from the database</param>
-        /// <returns>The number of rows affected by this operation</returns>
-        internal int Delete<TEntity>(TEntity obj) where TEntity : class
-        {
-            // Get our Table Mapping
-            Type objType = typeof(TEntity);
-            TableMapping table = EntityCache.GetTableMap(objType);
-            WhereStatement statement = null;
-            WhereClause where = null;
-
-            // build the where statement, using primary keys
-            foreach (string keyName in table.CompositeKeys)
-            {
-                PropertyInfo info = table.Columns[keyName].Property;
-                if (statement == null)
-                {
-                    statement = new WhereStatement();
-                    where = statement.Add(keyName, Comparison.Equals, info.GetValue(obj));
-                }
-                else
-                    where.AddClause(LogicOperator.And, keyName, Comparison.Equals, info.GetValue(obj));
-            }
-
-            // Build the SQL query and perform the deletion
-            string sql = $"DELETE FROM `{table.TableName}`";
-            using (SQLiteCommand command = this.CreateCommand(sql))
-            {
-                // Append the where statement
-                if (statement.Count > 0)
-                    command.CommandText += $" WHERE {statement.BuildStatement(command)}";
-
-                return command.ExecuteNonQuery();
-            }
-        }
-
-        #endregion Delete
+        #endregion Query Methods
 
         #region Code First
 
@@ -755,6 +627,9 @@ namespace CrossLite
                 // C# does, so we must translate
                 switch (Type.GetTypeCode(property.PropertyType))
                 {
+                    case TypeCode.Byte:
+                        property.SetValue(entity, reader.GetByte(i));
+                        break;
                     case TypeCode.Int16:
                         property.SetValue(entity, reader.GetInt16(i));
                         break;
@@ -784,35 +659,6 @@ namespace CrossLite
 
             // Add object
             return entity;
-        }
-
-        /// <summary>
-        /// Determines if a type is numeric. Nullable numeric types are considered numeric.
-        /// </summary>
-        /// <remarks>
-        /// Boolean is not considered numeric.
-        /// </remarks>
-        protected static bool IsNumericType(Type type)
-        {
-            if (type == null)
-                return false;
-
-            switch (Type.GetTypeCode(type))
-            {
-                case TypeCode.Byte:
-                case TypeCode.Decimal:
-                case TypeCode.Double:
-                case TypeCode.Int16:
-                case TypeCode.Int32:
-                case TypeCode.Int64:
-                case TypeCode.SByte:
-                case TypeCode.Single:
-                case TypeCode.UInt16:
-                case TypeCode.UInt32:
-                case TypeCode.UInt64:
-                    return true;
-            }
-            return false;
         }
 
         /// <summary>
