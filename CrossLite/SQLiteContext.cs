@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Data;
 using System.Data.Common;
 using System.Data.SQLite;
 using System.Globalization;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 using CrossLite.QueryBuilder;
 
 namespace CrossLite
@@ -349,7 +346,7 @@ namespace CrossLite
         /// The first parameter replaces @P0, second @P1 etc etc.
         /// </param>
         /// <returns></returns>
-        public IEnumerable<T> Query<T>(string Sql, params object[] Params)
+        public IEnumerable<T> Query<T>(string Sql, params object[] Params) where T : class
         {
             var paramItems = new List<SQLiteParameter>(Params.Length);
             for (int i = 0; i < Params.Length; i++)
@@ -369,7 +366,7 @@ namespace CrossLite
         /// <param name="Sql">The SQL Statement to run on the database</param>
         /// <param name="Params">A list of sql params to add to the command</param>
         /// <returns></returns>
-        public IEnumerable<T> Query<T>(string Sql, IEnumerable<SQLiteParameter> Params)
+        public IEnumerable<T> Query<T>(string Sql, IEnumerable<SQLiteParameter> Params) where T : class
         {
             // Get our Table Mapping
             Type objType = typeof(T);
@@ -562,12 +559,12 @@ namespace CrossLite
 
         #endregion Delete
 
-        #region Database Operations
+        #region Code First
 
         /// <summary>
         /// By passing an Entity type, this method will use the Attribute's
         /// attached to each of the entities properties to generate an 
-        /// SQL command, that wil create a table on the database.
+        /// SQL command, that will create a table on the database.
         /// </summary>
         /// <typeparam name="TEntity"></typeparam>
         /// <param name="ifNotExists">Indicates whether to skip the table creation 
@@ -718,7 +715,7 @@ namespace CrossLite
             }
         }
 
-        #endregion
+        #endregion Code First
 
         #region Helper Methods
 
