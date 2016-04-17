@@ -1,0 +1,17 @@
+﻿using System;
+
+namespace CrossLite
+{
+    /// <summary>
+    /// Represents a Unique attribute value. Only used in CodeFirst table 
+    /// creation <see cref="SQLiteContext.CreateTable{TEntity}(bool)"/>
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Property)]
+    public class UniqueAttribute : Attribute
+    {
+        public UniqueAttribute()
+        {
+
+        }
+    }
+}

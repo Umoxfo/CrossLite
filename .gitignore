@@ -1,0 +1,6 @@
+.vs/*
+CrossLite/bin/*
+CrossLite/obj/*
+CrossLiteTester/bin/*
+CrossLiteTester/obj/*
+*.suo
