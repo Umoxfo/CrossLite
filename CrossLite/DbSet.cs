@@ -42,32 +42,48 @@ namespace CrossLite
             TableMapping table = EntityCache.GetTableMap(objType);
             string[] keys = table.CompositeKeys;
 
+            // For fetching the reference later!
+            bool useRowId = false;
+            AttributeInfo pk = null;
+
             // Generate the SQL
             InsertQueryBuilder builder = new InsertQueryBuilder(table.TableName, Context);
             foreach (var attribute in table.Columns)
             {
                 // Grab value
-                object value = attribute.Value.Property.GetValue(obj);
+                PropertyInfo info = attribute.Value.Property;
+                object value = info.GetValue(obj);
 
                 // Check for auto increments!
                 if (keys.Contains(attribute.Key))
                 {
-                    // Skip inserting Auto Increment fields!
-                    if (attribute.Value.AutoIncrement == true)
-                        continue;
-
                     // Skip single primary keys that are Integers and do not have a value, 
                     // This will cause the key to perform an Auto Increment
-                    if (table.HasPrimaryKey && attribute.Value.Property.PropertyType.IsNumericType() && value == null)
+                    if (attribute.Value.AutoIncrement || (table.HasPrimaryKey && info.PropertyType.IsNumericType()))
+                    {
+                        useRowId = true;
+                        pk = attribute.Value;
                         continue;
+                    }
                 }
 
                 // Add attribute to the field list
                 builder.SetField(attribute.Key, value);
             }
 
-            // Create the SQL Command
-            return builder.Execute();
+            // Execute the SQL Command
+            int result = builder.Execute();
+
+            // If we have a Primary key that is determined database side,
+            // than we can update the current object's key value here
+            if (result > 0 && useRowId)
+            {
+                long rowId = Context.Connection.LastInsertRowId;
+                pk.Property.SetValue(obj, Convert.ChangeType(rowId, pk.Property.PropertyType));
+            }
+
+            // Finally, return the result
+            return result;
         }
 
         /// <summary>

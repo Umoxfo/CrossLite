@@ -149,6 +149,10 @@ namespace CrossLite
                     {
                         info.Unique = true;
                     }
+                    else if (attrType == typeof(CollationAttribute))
+                    {
+                        info.Collation = ((CollationAttribute)attr).Collation;
+                    }
                     else if (attrType == typeof(AutoIncrementAttribute))
                     {
                         // Cannot have more than 1

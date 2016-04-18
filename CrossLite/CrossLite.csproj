@@ -47,6 +47,7 @@
   <ItemGroup>
     <Compile Include="AttributeInfo.cs" />
     <Compile Include="Attributes\AutoIncrementAttribute.cs" />
+    <Compile Include="Attributes\CollationAttribute.cs" />
     <Compile Include="Attributes\ColumnAttribute.cs" />
     <Compile Include="Attributes\CompositeForeignKeyAttribute.cs" />
     <Compile Include="Attributes\CompositeUniqueAttribute.cs" />

@@ -5,10 +5,10 @@ namespace CrossLiteTester
     [Table("test")]
     public class Account
     {
-        [Column, PrimaryKey, AutoIncrement]
-        public int Id { get; protected set; }
+        [Column, PrimaryKey]
+        public int Id { get; set; }
 
-        [Column, NotNull]
+        [Column, NotNull, Collation(Collation.NoCase)]
         public string Name { get; set; }
     }
 }

@@ -18,13 +18,13 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Adds a new Where clause to the current Where Statement
         /// </summary>
-        /// <param name="FieldName">The Column name</param>
+        /// <param name="fieldName">The Column name</param>
         /// <param name="Operator">The Comparison Operator to use</param>
-        /// <param name="Value">The Value object</param>
+        /// <param name="value">The Value object</param>
         /// <returns></returns>
-        public WhereClause Add(string FieldName, Comparison @Operator, object Value)
+        public WhereClause Add(string fieldName, Comparison @Operator, object value)
         {
-            WhereClause Clause = new WhereClause(FieldName, @Operator, Value);
+            WhereClause Clause = new WhereClause(fieldName, @Operator, value);
             this.Add(Clause);
             return Clause;
         }
@@ -123,65 +123,68 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Formats, using the correct Comparaison Operator, The clause to SQL.
         /// </summary>
-        /// <param name="FieldName">The Clause Column name</param>
-        /// <param name="ComparisonOperator">The Comparison Operator</param>
-        /// <param name="Value">The Value object</param>
+        /// <param name="fieldName">The Clause Column name</param>
+        /// <param name="comparisonOperator">The Comparison Operator</param>
+        /// <param name="value">The Value object</param>
         /// <returns>Clause formatted to SQL</returns>
-        public static string CreateComparisonClause(string FieldName, Comparison ComparisonOperator, object Value)
+        public static string CreateComparisonClause(string fieldName, Comparison comparisonOperator, object value)
         {
+            // Correct
+            fieldName = SQLiteContext.Escape(fieldName);
+
             // Only 2 options for null values
-            if (Value == null || Value == DBNull.Value)
+            if (value == null || value == DBNull.Value)
             {
-                switch (ComparisonOperator)
+                switch (comparisonOperator)
                 {
                     case Comparison.Equals:
-                        return $"{FieldName} IS NULL";
+                        return $"{fieldName} IS NULL";
                     case Comparison.NotEqualTo:
-                        return $"NOT {FieldName} IS NULL";
+                        return $"NOT {fieldName} IS NULL";
                 }
             }
             else
             {
-                switch (ComparisonOperator)
+                switch (comparisonOperator)
                 {
                     case Comparison.Equals:
-                        return $"{FieldName} = {FormatSQLValue(Value)}";
+                        return $"{fieldName} = {FormatSQLValue(value)}";
                     case Comparison.NotEqualTo:
-                        return $"{FieldName} <> {FormatSQLValue(Value)}";
+                        return $"{fieldName} <> {FormatSQLValue(value)}";
                     case Comparison.Like:
-                        return $"{FieldName} LIKE {FormatSQLValue(Value)}";
+                        return $"{fieldName} LIKE {FormatSQLValue(value)}";
                     case Comparison.NotLike:
-                        return $"NOT {FieldName} LIKE {FormatSQLValue(Value)}";
+                        return $"NOT {fieldName} LIKE {FormatSQLValue(value)}";
                     case Comparison.GreaterThan:
-                        return $"{FieldName} > {FormatSQLValue(Value)}";
+                        return $"{fieldName} > {FormatSQLValue(value)}";
                     case Comparison.GreaterOrEquals:
-                        return $"{FieldName} >= {FormatSQLValue(Value)}";
+                        return $"{fieldName} >= {FormatSQLValue(value)}";
                     case Comparison.LessThan:
-                        return $"{FieldName} < {FormatSQLValue(Value)}";
+                        return $"{fieldName} < {FormatSQLValue(value)}";
                     case Comparison.LessOrEquals:
-                        return $"{FieldName} <= {FormatSQLValue(Value)}";
+                        return $"{fieldName} <= {FormatSQLValue(value)}";
                     case Comparison.In:
                     case Comparison.NotIn:
-                        string str1 = (ComparisonOperator == Comparison.NotIn) ? "NOT " : "";
-                        if (Value is Array)
+                        string str1 = (comparisonOperator == Comparison.NotIn) ? "NOT " : "";
+                        if (value is Array)
                         {
-                            Array array = (Array)Value;
-                            string str2 = str1 + FieldName + " IN (";
+                            Array array = (Array)value;
+                            string str2 = str1 + fieldName + " IN (";
                             foreach (object someValue in array)
                                 str2 = str2 + FormatSQLValue(someValue) + ",";
-                            return str2.TrimEnd(new char[1] { ',' }) + ")";
+                            return str2.TrimEnd(new char[] { ',' }) + ")";
                         }
-                        else if (Value is string)
-                            return str1 + FieldName + " IN (" + Value.ToString() + ")";
+                        else if (value is string)
+                            return str1 + fieldName + " IN (" + value.ToString() + ")";
                         else
-                            return str1 + FieldName + " IN (" + FormatSQLValue(Value) + ")";
+                            return str1 + fieldName + " IN (" + FormatSQLValue(value) + ")";
                     case Comparison.Between:
                     case Comparison.NotBetween:
-                        object[] objArray = (object[])Value;
+                        object[] objArray = (object[])value;
                         return String.Format(
                             "{0}{1} BETWEEN {2} AND {3}", 
-                            ((ComparisonOperator == Comparison.NotBetween) ? "NOT " : ""), 
-                            FieldName, 
+                            ((comparisonOperator == Comparison.NotBetween) ? "NOT " : ""), 
+                            fieldName, 
                             FormatSQLValue(objArray[0]), 
                             FormatSQLValue(objArray[1])
                         );

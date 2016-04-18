@@ -34,7 +34,12 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// The database driver, if using the "BuildCommand" method
         /// </summary>
-        protected SQLiteContext Driver;
+        protected SQLiteContext Context;
+
+        /// <summary>
+        /// Column name escape delimiter
+        /// </summary>
+        internal static char EscapeChar { get; set; } = '`';
 
         #endregion Properties
 
@@ -43,21 +48,21 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Creates a new instance of UpdateQueryBuilder with the provided Database Driver.
         /// </summary>
-        /// <param name="Driver">The DatabaseDriver that will be used to query this SQL statement</param>
-        public UpdateQueryBuilder(SQLiteContext Driver)
+        /// <param name="context">The DbContext that will be used to query this SQL statement</param>
+        public UpdateQueryBuilder(SQLiteContext context)
         {
-            this.Driver = Driver;
+            this.Context = context;
         }
 
         /// <summary>
         /// Creates a new instance of UpdateQueryBuilder with the provided Database Driver.
         /// </summary>
-        /// <param name="Table">The table we are updating</param>
-        /// <param name="Driver">The DatabaseDriver that will be used to query this SQL statement</param>
-        public UpdateQueryBuilder(string Table, SQLiteContext Driver)
+        /// <param name="table">The table we are updating</param>
+        /// <param name="context">The DbContext that will be used to query this SQL statement</param>
+        public UpdateQueryBuilder(string table, SQLiteContext context)
         {
-            this.Table = Table;
-            this.Driver = Driver;
+            this.Table = table;
+            this.Context = context;
         }
 
         #endregion Constructors
@@ -67,25 +72,25 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Sets a value for the specified field
         /// </summary>
-        /// <param name="Field">The column or field name</param>
-        /// <param name="Value">The new value to update</param>
-        public void SetField(string Field, object Value)
+        /// <param name="field">The column or field name</param>
+        /// <param name="value">The new value to update</param>
+        public void SetField(string field, object value)
         {
-            this.SetField(Field, Value, ValueMode.Set);
+            this.SetField(field, value, ValueMode.Set);
         }
 
         /// <summary>
         /// Sets a value for the specified field
         /// </summary>
-        /// <param name="Field">The column or field name</param>
-        /// <param name="Value">The new value to update</param>
-        /// <param name="Mode">Sets how the update value will be applied to the existing field value</param>
-        public void SetField(string Field, object Value, ValueMode Mode)
+        /// <param name="field">The column or field name</param>
+        /// <param name="value">The new value to update</param>
+        /// <param name="mode">Sets how the update value will be applied to the existing field value</param>
+        public void SetField(string field, object value, ValueMode mode)
         {
-            if (Fields.ContainsKey(Field))
-                Fields[Field] = new FieldValuePair(Field, Value, Mode);
+            if (Fields.ContainsKey(field))
+                Fields[field] = new FieldValuePair(field, value, mode);
             else
-                Fields.Add(Field, new FieldValuePair(Field, Value, Mode));
+                Fields.Add(field, new FieldValuePair(field, value, mode));
         }
 
         #endregion Fields
@@ -99,9 +104,9 @@ namespace CrossLite.QueryBuilder
             return Clause;
         }
 
-        public void AddWhere(WhereClause Clause)
+        public void AddWhere(WhereClause clause)
         {
-            this.WhereStatement.Add(Clause);
+            this.WhereStatement.Add(clause);
         }
 
         /// <summary>
@@ -120,19 +125,19 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Sets the table name to update
         /// </summary>
-        /// <param name="Table">The name of the table to update</param>
-        public void SetTable(string Table)
+        /// <param name="table">The name of the table to update</param>
+        public void SetTable(string table)
         {
-            this.Table = Table;
+            this.Table = table;
         }
 
         /// <summary>
-        /// Sets the database driver
+        /// Sets the database context for this query
         /// </summary>
-        /// <param name="Driver"></param>
-        public void SetDbDriver(SQLiteContext Driver)
+        /// <param name="context"></param>
+        public void SetContext(SQLiteContext context)
         {
-            this.Driver = Driver;
+            this.Context = context;
         }
 
         #endregion Set Methods
@@ -155,13 +160,13 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Builds the query string or DbCommand
         /// </summary>
-        /// <param name="BuildCommand"></param>
+        /// <param name="buildCommand"></param>
         /// <returns></returns>
-        protected object BuildQuery(bool BuildCommand)
+        protected object BuildQuery(bool buildCommand)
         {
             // Make sure we have a valid DB driver
-            if (BuildCommand && Driver == null)
-                throw new Exception("Cannot build a command when the Db Drvier hasn't been specified. Call SetDbDriver first.");
+            if (buildCommand && Context == null)
+                throw new Exception("Cannot build a command when the Context hasn't been specified. Call SetContext first.");
 
             // Make sure we have a table name
             if (String.IsNullOrWhiteSpace(Table))
@@ -172,52 +177,53 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("No fields to update");
 
             // Create Command
-            DbCommand Command = (BuildCommand) ? Driver.CreateCommand(null) : null;
+            DbCommand command = (buildCommand) ? Context.CreateCommand(null) : null;
 
             // Start Query
-            StringBuilder Query = new StringBuilder($"UPDATE {Table} SET ");
+            StringBuilder query = new StringBuilder($"UPDATE {SQLiteContext.Escape(Table)} SET ");
 
             // Add Fields
             bool First = true;
             foreach (KeyValuePair<string, FieldValuePair> Pair in Fields)
             {
                 // Append comma
-                if (!First) Query.Append(", ");
+                if (!First) query.Append(", ");
                 else First = false;
 
                 // If using a command, Convert values to Parameters
-                if (BuildCommand && Pair.Value.Value != null && Pair.Value.Value != DBNull.Value && !(Pair.Value.Value is SqlLiteral))
+                if (buildCommand && Pair.Value.Value != null && Pair.Value.Value != DBNull.Value && !(Pair.Value.Value is SqlLiteral))
                 {
                     // Create param for value
-                    DbParameter Param = Command.CreateParameter();
-                    Param.ParameterName = "@P" + Command.Parameters.Count;
+                    DbParameter Param = command.CreateParameter();
+                    Param.ParameterName = "@P" + command.Parameters.Count;
                     Param.Value = Pair.Value.Value;
 
                     // Add Params to command
-                    Command.Parameters.Add(Param);
+                    command.Parameters.Add(Param);
 
                     // Append Query
                     if (Pair.Value.Mode == ValueMode.Set)
-                        Query.Append(Pair.Key + " = " + Param.ParameterName);
+                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(Pair.Key), Param.ParameterName);
                     else
-                        Query.Append(String.Format("{0} = `{0}` {1} {2}", Pair.Key, GetSign(Pair.Value.Mode), Param.ParameterName));
+                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.Escape(Pair.Key), GetSign(Pair.Value.Mode), Param.ParameterName);
                 }
                 else
                 {
                     if (Pair.Value.Mode == ValueMode.Set)
-                        Query.Append(Pair.Key + " = " + WhereStatement.FormatSQLValue(Pair.Value.Value));
+                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(Pair.Key), WhereStatement.FormatSQLValue(Pair.Value.Value));
                     else
-                        Query.Append(String.Format("{0} = `{0}` {1} {2}", Pair.Key, GetSign(Pair.Value.Mode), WhereStatement.FormatSQLValue(Pair.Value.Value)));
+                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.Escape(Pair.Key), 
+                            GetSign(Pair.Value.Mode), WhereStatement.FormatSQLValue(Pair.Value.Value));
                 }
             }
 
             // Append Where
             if (this.WhereStatement.Count != 0)
-                Query.Append(" WHERE " + this.WhereStatement.BuildStatement(Command));
+                query.Append(" WHERE " + this.WhereStatement.BuildStatement(command));
 
             // Set the command text
-            if (BuildCommand) Command.CommandText = Query.ToString();
-            return (BuildCommand) ? Command as object : Query.ToString();
+            if (buildCommand) command.CommandText = query.ToString();
+            return (buildCommand) ? command as object : query.ToString();
         }
 
         /// <summary>

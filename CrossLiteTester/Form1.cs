@@ -45,6 +45,10 @@ namespace CrossLiteTester
                 Account entity = new Account() { Name = "Steve" };
                 db.Users.Add(entity);
 
+                // Check if entity inserted correctly
+                if (!db.Users.Contains(entity))
+                    MessageBox.Show(entity.Name + " does not exist!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
                 // More dummy data
                 entity = new Account() { Name = "Sally" };
                 db.Users.Add(entity);

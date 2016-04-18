@@ -35,6 +35,12 @@ namespace CrossLite
         public bool HasNotNullableAttribute { get; internal set; } = false;
 
         /// <summary>
+        /// Gets the COLLATE type definition that is used to define alternative 
+        /// collating functions for a column.
+        /// </summary>
+        public Collation Collation { get; internal set; } = Collation.Default;
+
+        /// <summary>
         /// Gets the Property for this attribute
         /// </summary>
         public PropertyInfo Property { get; internal set; }

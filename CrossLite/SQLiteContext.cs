@@ -7,7 +7,6 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using CrossLite.QueryBuilder;
 
 namespace CrossLite
 {
@@ -29,6 +28,11 @@ namespace CrossLite
         /// Indicates whether the disposed method was called
         /// </summary>
         protected bool IsDisposed = false;
+
+        /// <summary>
+        /// Column name escape delimiters
+        /// </summary>
+        public static char[] EscapeChars { get; protected set; } = new char[2] { '`', '`' };
 
         /// <summary>
         /// Creates a new connection to an SQLite Database
@@ -453,7 +457,7 @@ namespace CrossLite
             // Begin the SQL generation
             StringBuilder sql = new StringBuilder("CREATE TABLE ");
             sql.AppendIf(ifNotExists, "IF NOT EXISTS ");
-            sql.AppendLine($"`{table.TableName}` (");
+            sql.AppendLine($"{Escape(table.TableName)} (");
 
             // Append attributes
             foreach (var colData in table.Columns)
@@ -467,7 +471,7 @@ namespace CrossLite
                     withFKs.Add(info);
 
                 // Start building our SQL
-                sql.Append($"\t`{colData.Key}` {GetSQLiteType(info.Property.PropertyType)}");
+                sql.Append($"\t{Escape(colData.Key)} {GetSQLiteType(propertyType)}");
 
                 // Primary Key and Unique column definition
                 sql.AppendIf(table.HasPrimaryKey && info.PrimaryKey, $" PRIMARY KEY");
@@ -475,6 +479,12 @@ namespace CrossLite
 
                 // Auto Increment
                 sql.AppendIf(info.AutoIncrement, " AUTOINCREMENT");
+
+                // Collation
+                sql.AppendIf(
+                    info.Collation != Collation.Default && propertyType == typeof(string), 
+                    " COLLATE " + info.Collation.ToString().ToUpperInvariant()
+                );
 
                 // Nullable definition
                 bool canBeNull = !propertyType.IsValueType || (Nullable.GetUnderlyingType(propertyType) != null);
@@ -502,7 +512,7 @@ namespace CrossLite
             if (!table.HasPrimaryKey && keys.Length > 0)
             {
                 sql.Append($"\tPRIMARY KEY(");
-                sql.Append(String.Join(", ", keys));
+                sql.Append(String.Join(", ", keys.Select(x => Escape(x))));
                 sql.AppendLine("),");
             }
 
@@ -510,7 +520,7 @@ namespace CrossLite
             foreach (var cu in table.CompositeUnique)
             {
                 sql.Append($"\tUNIQUE(");
-                sql.Append(String.Join(", ", cu.Attributes));
+                sql.Append(String.Join(", ", cu.Attributes.Select(x => Escape(x))));
                 sql.AppendLine("),");
             }
 
@@ -519,11 +529,11 @@ namespace CrossLite
             {
                 // Primary table attributes
                 ForeignKeyAttribute fk = info.ForeignKey;
-                string attr = String.Join(", ", fk.OnAttribute);
+                string attr = Escape(fk.OnAttribute);
 
                 // Build sql command
                 TableMapping map = EntityCache.GetTableMap(fk.OnEntity);
-                sql.Append($"\tFOREIGN KEY({info.Name}) REFERENCES {map.TableName}({attr})");
+                sql.Append($"\tFOREIGN KEY({Escape(info.Name)}) REFERENCES {Escape(map.TableName)}({attr})");
 
                 // Add integrety options
                 sql.AppendIf(fk.OnUpdate != ReferentialIntegrity.NoAction, $" ON UPDATE {ToSQLite(fk.OnUpdate)}");
@@ -538,9 +548,9 @@ namespace CrossLite
             {
                 TableMapping map = EntityCache.GetTableMap(fk.OnEntity);
                 sql.AppendFormat("\tFOREIGN KEY({0}) REFERENCES {1}({2})",
-                    String.Join(", ", fk.FromAttributes),
-                    map.TableName,
-                    String.Join(", ", fk.OnAttributes)
+                    String.Join(", ", fk.FromAttributes.Select(x => Escape(x))),
+                    Escape(map.TableName),
+                    String.Join(", ", fk.OnAttributes.Select(x => Escape(x)))
                 );
 
                 // Add integrety options
@@ -580,7 +590,7 @@ namespace CrossLite
             TableMapping table = EntityCache.GetTableMap(entityType);
 
             // Build the SQL query and perform the deletion
-            string sql = $"DROP TABLE IF EXISTS `{table.TableName}`";
+            string sql = $"DROP TABLE IF EXISTS {Escape(table.TableName)}";
             using (SQLiteCommand command = this.CreateCommand(sql))
             {
                 command.ExecuteNonQuery();
@@ -707,6 +717,17 @@ namespace CrossLite
                 case ReferentialIntegrity.SetNull: return "SET NULL";
                 default: return "NO ACTION";
             }
+        }
+
+        /// <summary>
+        /// Wraps the string with Indentifer Delimiters, to prevent keyword
+        /// errors in SQL statements.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public static string Escape(string value)
+        {
+            return String.Concat(EscapeChars[0], value.Trim(EscapeChars), EscapeChars[1]);
         }
 
         #endregion Helper Methods

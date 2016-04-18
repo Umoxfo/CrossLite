@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace CrossLite
 {
+    /// <summary>
+    /// This class is used to cache <see cref="TableMapping"/> objects
+    /// </summary>
     internal static class EntityCache
     {
         /// <summary>

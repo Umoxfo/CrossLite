@@ -29,7 +29,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// The database driver, if using the "BuildCommand" method
         /// </summary>
-        protected SQLiteContext Driver;
+        protected SQLiteContext Context;
 
         #endregion Properties
 
@@ -38,21 +38,21 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Creates a new instance of InsertQueryBuilder with the provided Database Driver.
         /// </summary>
-        /// <param name="Driver">The DatabaseDriver that will be used to query this SQL statement</param>
-        public InsertQueryBuilder(SQLiteContext Driver)
+        /// <param name="context">The DbContext that will be used to query this SQL statement</param>
+        public InsertQueryBuilder(SQLiteContext context)
         {
-            this.Driver = Driver;
+            this.Context = context;
         }
 
         /// <summary>
         /// Creates a new instance of InsertQueryBuilder with the provided Database Driver.
         /// </summary>
-        /// <param name="Table">The table we are inserting into</param>
-        /// <param name="Driver">The DatabaseDriver that will be used to query this SQL statement</param>
-        public InsertQueryBuilder(string Table, SQLiteContext Driver)
+        /// <param name="table">The table we are inserting into</param>
+        /// <param name="context">The DbContext that will be used to query this SQL statement</param>
+        public InsertQueryBuilder(string table, SQLiteContext context)
         {
-            this.Table = Table;
-            this.Driver = Driver;
+            this.Table = table;
+            this.Context = context;
         }
 
         #endregion Constructors
@@ -60,14 +60,14 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Sets a value for the specified field
         /// </summary>
-        /// <param name="Field">The column or field name</param>
-        /// <param name="Value">The value to insert</param>
-        public void SetField(string Field, object Value)
+        /// <param name="field">The column or field name</param>
+        /// <param name="value">The value to insert</param>
+        public void SetField(string field, object value)
         {
-            if (Fields.ContainsKey(Field))
-                Fields[Field] = Value;
+            if (Fields.ContainsKey(field))
+                Fields[field] = value;
             else
-                Fields.Add(Field, Value);
+                Fields.Add(field, value);
         }
 
         #region Set Methods
@@ -75,10 +75,10 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Sets the table name to inesrt into
         /// </summary>
-        /// <param name="Table">The name of the table to insert into</param>
-        public void SetTable(string Table)
+        /// <param name="table">The name of the table to insert into</param>
+        public void SetTable(string table)
         {
-            this.Table = Table;
+            this.Table = table;
         }
 
         #endregion Set Methods
@@ -103,13 +103,13 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Builds the query string or DbCommand
         /// </summary>
-        /// <param name="BuildCommand"></param>
+        /// <param name="buildCommand"></param>
         /// <returns></returns>
-        protected object BuildQuery(bool BuildCommand)
+        protected object BuildQuery(bool buildCommand)
         {
             // Make sure we have a valid DB driver
-            if (BuildCommand && Driver == null)
-                throw new Exception("Cannot build a command when the Db Drvier hasn't been specified. Call SetDbDriver first.");
+            if (buildCommand && Context == null)
+                throw new Exception("Cannot build a command when the Db Drvier hasn't been specified. Call SetContext first.");
 
             // Make sure we have a table name
             if (String.IsNullOrWhiteSpace(Table))
@@ -120,27 +120,27 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("No fields to insert");
 
             // Create Command
-            DbCommand Command = (BuildCommand) ? Driver.CreateCommand(null) : null;
+            DbCommand Command = (buildCommand) ? Context.CreateCommand(null) : null;
 
             // Start Query
-            StringBuilder Query = new StringBuilder("INSERT INTO " + Table + " (");
-            StringBuilder Values = new StringBuilder();
-            bool First = true;
+            StringBuilder query = new StringBuilder($"INSERT INTO {SQLiteContext.Escape(Table)} (");
+            StringBuilder values = new StringBuilder();
+            bool first = true;
 
             // Add fields and values
             foreach (KeyValuePair<string, object> Item in Fields)
             {
                 // Append comma
-                if (!First)
+                if (!first)
                 {
-                    Query.Append(", ");
-                    Values.Append(", ");
+                    query.Append(", ");
+                    values.Append(", ");
                 }
                 else 
-                    First = false;
+                    first = false;
 
                 // If using a command, Convert values to Parameters
-                if (BuildCommand && Item.Value != null && Item.Value != DBNull.Value && !(Item.Value is SqlLiteral))
+                if (buildCommand && Item.Value != null && Item.Value != DBNull.Value && !(Item.Value is SqlLiteral))
                 {
                     // Create param for value
                     DbParameter Param = Command.CreateParameter();
@@ -151,22 +151,22 @@ namespace CrossLite.QueryBuilder
                     Command.Parameters.Add(Param);
 
                     // Append query's
-                    Query.Append(Item.Key);
-                    Values.Append(Param.ParameterName);
+                    query.Append(SQLiteContext.Escape(Item.Key));
+                    values.Append(Param.ParameterName);
                 }
                 else
                 {
-                    Query.Append(Item.Key);
-                    Values.Append(WhereStatement.FormatSQLValue(Item.Value));
+                    query.Append(Item.Key);
+                    values.Append(WhereStatement.FormatSQLValue(Item.Value));
                 }
             }
 
             // Finish the query string, and return the proper object
-            Query.Append(") VALUES (" + Values.ToString() + ")");
+            query.AppendFormat(") VALUES ({0})", values);
 
             // Set the command text
-            if (BuildCommand) Command.CommandText = Query.ToString();
-            return (BuildCommand) ? Command as object : Query.ToString();
+            if (buildCommand) Command.CommandText = query.ToString();
+            return (buildCommand) ? Command as object : query.ToString();
         }
 
         /// <summary>
