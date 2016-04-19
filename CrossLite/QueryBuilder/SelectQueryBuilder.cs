@@ -134,8 +134,7 @@ namespace CrossLite.QueryBuilder
         }
 
         /// <summary>
-        /// Selects the specified columns in the SQL Statement being built. Calling this method
-        /// clears all previous selected columns
+        /// Adds the specified column selectors in the SQL Statement being built.
         /// </summary>
         /// <param name="columns">The column names to select</param>
         public SelectQueryBuilder Select(params string[] columns)
@@ -153,6 +152,10 @@ namespace CrossLite.QueryBuilder
             return this;
         }
 
+        /// <summary>
+        /// Adds the specified column selectors in the SQL Statement being built.
+        /// </summary>
+        /// <param name="columns">The column names to select</param>
         public SelectQueryBuilder Select(IEnumerable<string> columns)
         {
             // Ensure created with main table index
