@@ -1,6 +1,6 @@
 # CrossLite
 CrossLite is an open source, minimal library to allow .NET applications to store, fetch and translate data in SQLite 3 databases.This library is very similar to Entity Framework by Microsoft, but much more lightweight and supports SQLite CodeFirst. Unlike Entity Framework however, all references to data are not stored by this library. When you query for an entity, it comes directly from the database, regardless to whether that entity has a reference already.
-__Please bear with my as I complete this Readme, it is still a work in progress__.
+__Please bear with me as I complete this Readme, it is still a work in progress__.
 
 #### Table of Contents
 
@@ -13,7 +13,7 @@ __Please bear with my as I complete this Readme, it is still a work in progress_
 
 #### Requirements
  * System.Data.SQLite v 1.0.99
- * .NET 4.5.2 or newer
+ * Microsoft .NET 4.5.2 or newer
 
 #### Basic Read Query Example
 ```C#
@@ -52,7 +52,7 @@ namespace CrossLiteExample
     }
 }
 ```
-The `[Column]` attributes tell the Entity Translator that the properties "Id" and "Name" are mapped to the same named columns in the table "Account". You can optionally put the table's column name in the Column attribute if it differs from that in the table (`[Column("name")]`). Lets have a look at a Non query next.
+The `[Column]` attribute tells the Entity Translator that the properties "Id" and "Name" are mapped to the same named columns on the table "Account". You can optionally put the table's column name in the Column attribute if it differs from that in the table (`[Column("name")]`). Lets have a look at a Non query next.
 
 #### Basic Insert Query
 ```C#
@@ -81,7 +81,7 @@ using (var context = new SQLiteContext(builder))
 }
 ```
 
-## The DbSet: Moving away from SQL queries
+### The DbSet: Moving away from SQL queries
 For those more interested in managing thier data in C# type syntax, rather than writing SQL, CrossLite comes with an awesome `DbSet<TEntity>` class. The DbSet represents the collection of all Entities (rows of data) in the context that can be queried from the database. The DbSet object implements the `IEnumerable<T>` interface, which comes directly from the SQLite database, allowing you to use LINQ on the Entities. Let me show you a basic example of a DbSet in action.
 
 ```C#
@@ -111,7 +111,7 @@ using (var context = new DerivedContext(builder))
     Debug.AssertEquals(entity.Name == "Dave");
 }
 
-// An Our dervied context
+// And our custom derivied context we used in this example
 
 public class DerivedContext : SQLiteContext
 {
@@ -128,7 +128,7 @@ public class DerivedContext : SQLiteContext
 }
 ```
 
-## CodeFirst
+### CodeFirst
 What is CodeFirst? CodeFirst is a set of features that allows you to design your database based off of your Entity objects, rather than designing your Entities around your database. In order to use CodeFirst features, you must add the CodeFirst namespace in addition to the CrossLite namespace. Lets have a look at the 2 methods in CodeFirst that allow you to Create and Drop tables using Entity types.
 
 ```C#
@@ -188,4 +188,4 @@ namespace MyProject
     }
 }
 ```
-Notice how the Foreign key relation properties are marked as Virtual. In order for the Entity Translator to be able to understand how to properly design its virtual table, these foreign key properties need to be marked virtual. If you do not wish to use CodeFirst Foreign Key support, simply exlude those virtual properties!
+Notice how the Foreign key relation properties are marked as Virtual. In order for the Entity Translator to be able to understand how to properly design its virtual table, these foreign key properties need to be marked virtual. If you do not wish to use CodeFirst Foreign Key support, simply exclude those virtual properties!
