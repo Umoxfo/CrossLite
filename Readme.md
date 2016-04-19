@@ -1,5 +1,10 @@
 ### CrossLite
 CrossLite is an open source, minimal library to allow .NET applications to store, fetch and translate data in SQLite 3 databases.This library is very similar to Entity Framework by Microsoft, but much more lightweight and supports SQLite CodeFirst. Unlike Entity Framework however, all references to data are not stored by this library. When you query for an entity, it comes directly from the database, regardless to whether that entity has a reference already.
+__Please bear with my as I complete this Readme, it is still a work in progress__.
+
+### Requirements
+ * System.Data.SQLite v 1.0.99
+ * .NET 4.5.2 or newer
 
 ### Basic Read Query Example
 ```C#
@@ -54,10 +59,10 @@ using (var context = new SQLiteContext(builder))
 	parameters.Add(new SQLiteParameter() { ParameterName = "@P1", Value = "Steve" });
 
 	// Perform insertion
-	int rowsAffected = db.Execute("INSERT INTO Account(Id, Name) VALUES(@P0, @P1)", parameters);
+	int rowsAffected = context.Execute("INSERT INTO Account(Id, Name) VALUES(@P0, @P1)", parameters);
 	
 	// --- Method 2: Just pass an unlimited amount of ordered parameters
-	int rowsAffected = db.Execute("INSERT INTO Account(Id, Name) VALUES(@P0, @P1)", 1, "Dave");
+	int rowsAffected = context.Execute("INSERT INTO Account(Id, Name) VALUES(@P0, @P1)", 1, "Dave");
 	
 	// Success handling
 	if (rowsAffected > 0)
@@ -68,7 +73,7 @@ using (var context = new SQLiteContext(builder))
 ```
 
 ### The DbSet: Moving away from SQL queries
-For those more interested in managing thier data in C# type syntax, rather than writing SQL, CrossLite comes with an awesome DbSet<TEntity> class. The DbSet represents the collection of all Entities (rows of data) in the context that can be queried from the database. The DbSet object implemints the IEnumerable interface, which comes directly from the SQLite database, allowing you to use LINQ on the Entities. Let me show you a basic example of a DbSet in action.
+For those more interested in managing thier data in C# type syntax, rather than writing SQL, CrossLite comes with an awesome DbSet<TEntity> class. The DbSet represents the collection of all Entities (rows of data) in the context that can be queried from the database. The DbSet object implements the IEnumerable interface, which comes directly from the SQLite database, allowing you to use LINQ on the Entities. Let me show you a basic example of a DbSet in action.
 
 ```C#
 using CrossLite;
@@ -147,6 +152,9 @@ namespace MyProject
 
         [Column, Required, Collation(Collation.NoCase)]
         public string Name { get; set; }
+        
+        [Column]
+        public int RoleId { get; set; }
 
         /// <summary>
         /// A lazy loaded enumeration that fetches all Privilages
@@ -168,3 +176,4 @@ namespace MyProject
     }
 }
 ```
+Notice how the Foreign key relation properties are marked as Virtual. In order for the Entity Translator to be able to understand how to properly design its virtual table, these foreign key properties need to be marked virtual. If you do not wish to use CodeFirst Foreign Key support, simply exlude those virtual properties!
