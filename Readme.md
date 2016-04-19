@@ -1,12 +1,21 @@
-### CrossLite
+# CrossLite
 CrossLite is an open source, minimal library to allow .NET applications to store, fetch and translate data in SQLite 3 databases.This library is very similar to Entity Framework by Microsoft, but much more lightweight and supports SQLite CodeFirst. Unlike Entity Framework however, all references to data are not stored by this library. When you query for an entity, it comes directly from the database, regardless to whether that entity has a reference already.
 __Please bear with my as I complete this Readme, it is still a work in progress__.
 
-### Requirements
+#### Table of Contents
+
+- [Requirements](#requirements)
+- [Basic Read Query Example](#basic-read-query-example)
+- [Basic Insert Query](#basic-insert-query)
+- [The DbSet: Moving away from SQL queries](#the-dbset-moving-away-from-sql-queries)
+- [CodeFirst](#codefirst)
+- [CodeFirst Entity](#codefirst-entity)
+
+#### Requirements
  * System.Data.SQLite v 1.0.99
  * .NET 4.5.2 or newer
 
-### Basic Read Query Example
+#### Basic Read Query Example
 ```C#
 var builder = new SQLiteConnectionStringBuilder() { DataSource = filePath };
 using (var context = new SQLiteContext(builder))
@@ -43,9 +52,9 @@ namespace CrossLiteExample
     }
 }
 ```
-The [Column] attributes tell the Entity Translator that the properties "Id" and "Name" are mapped to the same named columns in the table "Account". You can optionally put the table's column name in the Column attribute if it differs from that in the table ([Column("name")]). Lets have a look at a Non query next.
+The `[Column]` attributes tell the Entity Translator that the properties "Id" and "Name" are mapped to the same named columns in the table "Account". You can optionally put the table's column name in the Column attribute if it differs from that in the table (`[Column("name")]`). Lets have a look at a Non query next.
 
-### Basic Insert Query
+#### Basic Insert Query
 ```C#
 var builder = new SQLiteConnectionStringBuilder() { DataSource = filePath };
 using (var context = new SQLiteContext(builder))
@@ -72,8 +81,8 @@ using (var context = new SQLiteContext(builder))
 }
 ```
 
-### The DbSet: Moving away from SQL queries
-For those more interested in managing thier data in C# type syntax, rather than writing SQL, CrossLite comes with an awesome DbSet<TEntity> class. The DbSet represents the collection of all Entities (rows of data) in the context that can be queried from the database. The DbSet object implements the IEnumerable interface, which comes directly from the SQLite database, allowing you to use LINQ on the Entities. Let me show you a basic example of a DbSet in action.
+## The DbSet: Moving away from SQL queries
+For those more interested in managing thier data in C# type syntax, rather than writing SQL, CrossLite comes with an awesome `DbSet<TEntity>` class. The DbSet represents the collection of all Entities (rows of data) in the context that can be queried from the database. The DbSet object implements the `IEnumerable<T>` interface, which comes directly from the SQLite database, allowing you to use LINQ on the Entities. Let me show you a basic example of a DbSet in action.
 
 ```C#
 using CrossLite;
@@ -119,7 +128,7 @@ public class DerivedContext : SQLiteContext
 }
 ```
 
-### CodeFirst
+## CodeFirst
 What is CodeFirst? CodeFirst is a set of features that allows you to design your database based off of your Entity objects, rather than designing your Entities around your database. In order to use CodeFirst features, you must add the CodeFirst namespace in addition to the CrossLite namespace. Lets have a look at the 2 methods in CodeFirst that allow you to Create and Drop tables using Entity types.
 
 ```C#
@@ -138,7 +147,7 @@ using (var context = new DerivedContext(builder))
 ```
 To be able to create and drop tables by just passing an Entity to CodeFirst, you must attach some new attributes to your Properties. In the next section, we will see an example of a CodeFirst entity.
 
-### CodeFirst Entity
+#### CodeFirst Entity
 One of the many great features of CodeFirst, is the addition to Foreign Key support and loading in Entities. With new features like that however, comes more complexity. Have a look at the Account entity now!
 
 ```C#
