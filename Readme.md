@@ -92,11 +92,14 @@ using (var context = new DerivedContext(builder))
     entity.Name = "Dave";
     context.Accounts.Update(entity);
     
-    // Fetch data using LINQ
-    entity = (from x in db.Accounts select x).First();
+    // Fetch data using LINQ queries
+    entity = (from x in context.Accounts select x).First();
+    
+    // OR fetching using LINQ methods
+    entity = context.Accounts.First();
     
     // Name will be Dave
-    Assert.Debug(entity.Name == "Dave");
+    Debug.AssertEquals(entity.Name == "Dave");
 }
 
 // An Our dervied context
