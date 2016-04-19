@@ -40,9 +40,9 @@ namespace CrossLite
             // Get our Table Mapping
             Type objType = typeof(TEntity);
             TableMapping table = EntityCache.GetTableMap(objType);
-            string[] keys = table.CompositeKeys;
+            string[] keys = table.CompositeKeys; // Linq query; Run enumerator once
 
-            // For fetching the reference later!
+            // For fetching the RowID
             bool useRowId = false;
             AttributeInfo pk = null;
 
@@ -80,6 +80,9 @@ namespace CrossLite
             {
                 long rowId = Context.Connection.LastInsertRowId;
                 pk.Property.SetValue(obj, Convert.ChangeType(rowId, pk.Property.PropertyType));
+
+                // Build relationships
+                table.CreateRelationships(objType, obj, Context);
             }
 
             // Finally, return the result
@@ -96,30 +99,26 @@ namespace CrossLite
             // Get our Table Mapping
             Type objType = typeof(TEntity);
             TableMapping table = EntityCache.GetTableMap(objType);
-            WhereStatement statement = null;
-            WhereClause where = null;
+            WhereStatement statement = new WhereStatement();
 
             // build the where statement, using primary keys
             foreach (string keyName in table.CompositeKeys)
             {
                 PropertyInfo info = table.Columns[keyName].Property;
-                if (statement == null)
-                {
-                    statement = new WhereStatement();
-                    where = statement.Add(keyName, Comparison.Equals, info.GetValue(obj));
-                }
-                else
-                    where.AddClause(LogicOperator.And, keyName, Comparison.Equals, info.GetValue(obj));
+                statement.And(keyName, Comparison.Equals, info.GetValue(obj));
             }
 
-            // Build the SQL query and perform the deletion
-            string sql = $"DELETE FROM `{table.TableName}`";
+            // Build the SQL query
+            List<SQLiteParameter> parameters;
+            string sql = String.Format("DELETE FROM {0} WHERE {1}",
+                SQLiteContext.Escape(table.TableName),
+                statement.BuildStatement(Context, out parameters)
+            );
+
+            // Execute the command
             using (SQLiteCommand command = Context.CreateCommand(sql))
             {
-                // Append the where statement
-                if (statement.Count > 0)
-                    command.CommandText += $" WHERE {statement.BuildStatement(command)}";
-
+                command.Parameters.AddRange(parameters.ToArray());
                 return command.ExecuteNonQuery();
             }
         }
@@ -138,7 +137,6 @@ namespace CrossLite
 
             // Generate the SQL
             UpdateQueryBuilder builder = new UpdateQueryBuilder(table.TableName, Context);
-            builder.SetWhereOperator(LogicOperator.And);
             foreach (var attribute in table.Columns)
             {
                 // Check for keys
@@ -153,7 +151,7 @@ namespace CrossLite
             foreach (string keyName in table.CompositeKeys)
             {
                 PropertyInfo info = table.Columns[keyName].Property;
-                builder.AddWhere(keyName, Comparison.Equals, info.GetValue(obj));
+                builder.Where(keyName, Comparison.Equals, info.GetValue(obj));
             }
 
             // Create the SQL Command
@@ -185,8 +183,7 @@ namespace CrossLite
             // Get our Table Mapping
             Type objType = typeof(TEntity);
             TableMapping table = EntityCache.GetTableMap(objType);
-            WhereStatement statement = new WhereStatement();
-            WhereClause clause = null;
+            WhereStatement stmt = new WhereStatement();
 
             // build the where statement, using primary keys
             foreach (string keyName in table.CompositeKeys)
@@ -195,18 +192,20 @@ namespace CrossLite
                 object val = info.GetValue(obj);
 
                 // Add value to where statement
-                if (clause == null)
-                    clause = statement.Add(keyName, Comparison.Equals, val);
-                else
-                    clause.AddClause(LogicOperator.And, keyName, Comparison.Equals, val);
+                stmt.And(keyName, Comparison.Equals, val);
             }
 
-            // Build the SQL query and perform the deletion
-            string sql = $"SELECT EXISTS(SELECT 1 FROM `{table.TableName}`";
+            // Build the SQL query
+            List<SQLiteParameter> parameters;
+            string sql = String.Format("SELECT EXISTS(SELECT 1 FROM {0} WHERE {1} LIMIT 1);",
+                SQLiteContext.Escape(table.TableName),
+                stmt.BuildStatement(Context, out parameters)
+            );
+
+            // Execute the command
             using (SQLiteCommand command = Context.CreateCommand(sql))
             {
-                // Append the where statement
-                command.CommandText += $" WHERE {statement.BuildStatement(command)} LIMIT 1);";
+                command.Parameters.AddRange(parameters.ToArray());
                 return Context.ExecuteScalar<int>(command) == 1;
             }
         }

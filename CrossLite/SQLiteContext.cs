@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using CrossLite.CodeFirst;
 
 namespace CrossLite
 {
@@ -17,7 +18,7 @@ namespace CrossLite
     /// Objects to let the developer focus on programming in an Object 
     /// Oriented manner.
     /// </summary>
-    public abstract class SQLiteContext : IDisposable
+    public class SQLiteContext : IDisposable
     {
         /// <summary>
         /// The database connection
@@ -30,9 +31,32 @@ namespace CrossLite
         protected bool IsDisposed = false;
 
         /// <summary>
-        /// Column name escape delimiters
+        /// <see cref="EscapeCharacters"/>
         /// </summary>
-        public static char[] EscapeChars { get; protected set; } = new char[2] { '`', '`' };
+        protected static char[] EscapeChars = new char[2] { '`', '`' };
+
+        /// <summary>
+        /// Gets or sets the starting and ending delimiters to use when specifying SQL 
+        /// database objects, such as tables or columns, whose names contain characters 
+        /// such as spaces or reserved tokens
+        /// </summary>
+        public static char[] EscapeCharacters
+        {
+            get { return EscapeChars; }
+            set
+            {
+                // Must be 2
+                if (value.Length != 2)
+                    throw new ArgumentException("Delimiter length must be 2 characters!", "EscapeCharacters");
+
+                EscapeChars = value;
+            }
+        }
+
+        /// <summary>
+        /// Contains the conenction string used to open this connection
+        /// </summary>
+        public string ConnectionString { get; private set; }
 
         /// <summary>
         /// Creates a new connection to an SQLite Database
@@ -40,6 +64,7 @@ namespace CrossLite
         /// <param name="connectionString">The Connection string to connect to this database</param>
         public SQLiteContext(string connectionString)
         {
+            ConnectionString = connectionString;
             Connection = new SQLiteConnection(connectionString);
         }
 
@@ -393,7 +418,7 @@ namespace CrossLite
                         while (reader.Read())
                         {
                             // Add object
-                            yield return (T)ConvertToEntity(table, reader);
+                            yield return ConvertToEntity<T>(table, reader);
                         }
                     }
 
@@ -425,7 +450,7 @@ namespace CrossLite
                 {
                     // Return each row
                     while (reader.Read())
-                        yield return (TEntity)ConvertToEntity(table, reader);
+                        yield return ConvertToEntity<TEntity>(table, reader);
                 }
 
                 // Cleanup
@@ -443,60 +468,67 @@ namespace CrossLite
         /// SQL command, that will create a table on the database.
         /// </summary>
         /// <typeparam name="TEntity"></typeparam>
-        /// <param name="ifNotExists">Indicates whether to skip the table creation 
-        /// if the table already exists on the database.</param>
-        public void CreateTable<TEntity>(bool ifNotExists = false) where TEntity : class
+        /// <param name="flags">Additional flags for SQL generation</param>
+        public void CreateTable<TEntity>(TableCreationOptions flags = TableCreationOptions.None) 
+            where TEntity : class
         {
             // Get our table mapping
             Type entityType = typeof(TEntity);
             TableMapping table = EntityCache.GetTableMap(entityType);
 
-            // For later use
+            // Column defined foreign keys
             List<AttributeInfo> withFKs = new List<AttributeInfo>();
 
+            // -----------------------------------------
             // Begin the SQL generation
-            StringBuilder sql = new StringBuilder("CREATE TABLE ");
-            sql.AppendIf(ifNotExists, "IF NOT EXISTS ");
+            // -----------------------------------------
+            StringBuilder sql = new StringBuilder("CREATE ");
+            sql.AppendIf(flags.HasFlag(TableCreationOptions.Temporary), "TEMP ");
+            sql.Append("TABLE ");
+            sql.AppendIf(flags.HasFlag(TableCreationOptions.IfNotExists), "IF NOT EXISTS ");
             sql.AppendLine($"{Escape(table.TableName)} (");
 
+            // -----------------------------------------
             // Append attributes
+            // -----------------------------------------
             foreach (var colData in table.Columns)
             {
                 // Get attribute data
                 AttributeInfo info = colData.Value;
                 Type propertyType = info.Property.PropertyType;
+                SQLiteDataType pSqlType = GetSQLiteType(propertyType);
 
-                // For later use
-                if (info.ForeignKey != null)
-                    withFKs.Add(info);
-
-                // Start building our SQL
-                sql.Append($"\t{Escape(colData.Key)} {GetSQLiteType(propertyType)}");
+                // Start appending column definition SQL
+                sql.Append($"\t{Escape(colData.Key)} {pSqlType}");
 
                 // Primary Key and Unique column definition
-                sql.AppendIf(table.HasPrimaryKey && info.PrimaryKey, $" PRIMARY KEY");
-                sql.AppendIf(info.Unique, " UNIQUE");
-
-                // Auto Increment
-                sql.AppendIf(info.AutoIncrement, " AUTOINCREMENT");
+                if (info.AutoIncrement || (table.HasPrimaryKey && info.PrimaryKey))
+                {
+                    sql.AppendIf(table.HasPrimaryKey && info.PrimaryKey, $" PRIMARY KEY");
+                    sql.AppendIf(info.AutoIncrement && pSqlType == SQLiteDataType.INTEGER, " AUTOINCREMENT");
+                }
+                else if (info.Unique)
+                {
+                    // Unique column definition
+                    sql.Append(" UNIQUE");
+                }
 
                 // Collation
                 sql.AppendIf(
-                    info.Collation != Collation.Default && propertyType == typeof(string), 
+                    info.Collation != Collation.Default && pSqlType == SQLiteDataType.TEXT, 
                     " COLLATE " + info.Collation.ToString().ToUpperInvariant()
                 );
 
                 // Nullable definition
                 bool canBeNull = !propertyType.IsValueType || (Nullable.GetUnderlyingType(propertyType) != null);
-                if (info.HasNotNullableAttribute || (!info.PrimaryKey && !canBeNull))
+                if (info.HasRequiredAttribute || (!info.PrimaryKey && !canBeNull))
                     sql.Append(" NOT NULL");
 
                 // Default value
                 if (info.DefaultValue != null)
                 {
+                    // Do we need to quote this?
                     SQLiteDataType type = GetSQLiteType(info.DefaultValue.GetType());
-
-                    // No quotes
                     if (type == SQLiteDataType.INTEGER || type == SQLiteDataType.REAL)
                         sql.Append($" DEFAULT {info.DefaultValue}");
                     else
@@ -505,10 +537,16 @@ namespace CrossLite
 
                 // Add last comma
                 sql.AppendLine(",");
+
+                // For later use
+                if (info.ForeignKey != null)
+                    withFKs.Add(info);
             }
 
-            // Add Composite Keys
-            string[] keys = table.CompositeKeys;
+            // -----------------------------------------
+            // Composite Keys
+            // -----------------------------------------
+            string[] keys = table.CompositeKeys; // Linq query; Perform once here
             if (!table.HasPrimaryKey && keys.Length > 0)
             {
                 sql.Append($"\tPRIMARY KEY(");
@@ -516,24 +554,29 @@ namespace CrossLite
                 sql.AppendLine("),");
             }
 
-            // Add Composite Unique's
-            foreach (var cu in table.CompositeUnique)
+            // -----------------------------------------
+            // Composite Unique Constraints
+            // -----------------------------------------
+            foreach (var cu in table.UniqueConstraints)
             {
                 sql.Append($"\tUNIQUE(");
                 sql.Append(String.Join(", ", cu.Attributes.Select(x => Escape(x))));
                 sql.AppendLine("),");
             }
 
+            // -----------------------------------------
             // Foreign Keys
-            foreach (AttributeInfo info in withFKs)
+            // -----------------------------------------
+            foreach (ForeignKeyInfo info in table.ForeignKeys)
             {
                 // Primary table attributes
                 ForeignKeyAttribute fk = info.ForeignKey;
-                string attr = Escape(fk.OnAttribute);
+                string attrs1 = String.Join(", ", fk.Attributes.Select(x => Escape(x)));
+                string attrs2 = String.Join(", ", info.InverseKey.Attributes.Select(x => Escape(x)));
 
                 // Build sql command
-                TableMapping map = EntityCache.GetTableMap(fk.OnEntity);
-                sql.Append($"\tFOREIGN KEY({Escape(info.Name)}) REFERENCES {Escape(map.TableName)}({attr})");
+                TableMapping map = EntityCache.GetTableMap(info.ParentEntityType);
+                sql.Append($"\tFOREIGN KEY({Escape(attrs1)}) REFERENCES {Escape(map.TableName)}({attrs2})");
 
                 // Add integrety options
                 sql.AppendIf(fk.OnUpdate != ReferentialIntegrity.NoAction, $" ON UPDATE {ToSQLite(fk.OnUpdate)}");
@@ -543,25 +586,9 @@ namespace CrossLite
                 sql.AppendLine(",");
             }
 
-            // Composite Foreign Keys
-            foreach (var fk in table.CompositeForeignKeys)
-            {
-                TableMapping map = EntityCache.GetTableMap(fk.OnEntity);
-                sql.AppendFormat("\tFOREIGN KEY({0}) REFERENCES {1}({2})",
-                    String.Join(", ", fk.FromAttributes.Select(x => Escape(x))),
-                    Escape(map.TableName),
-                    String.Join(", ", fk.OnAttributes.Select(x => Escape(x)))
-                );
-
-                // Add integrety options
-                sql.AppendIf(fk.OnUpdate != ReferentialIntegrity.NoAction, $" ON UPDATE {ToSQLite(fk.OnUpdate)}");
-                sql.AppendIf(fk.OnDelete != ReferentialIntegrity.NoAction, $" ON DELETE {ToSQLite(fk.OnDelete)}");
-
-                // Finish the line
-                sql.AppendLine(",");
-            }
-
-            // Convert to string
+            // -----------------------------------------
+            // SQL wrap up
+            // -----------------------------------------
             string sqlLine = String.Concat(
                 sql.ToString().TrimEnd(new char[] { '\r', '\n', ',' }), 
                 Environment.NewLine, 
@@ -572,7 +599,9 @@ namespace CrossLite
             if (table.WithoutRowID)
                 sqlLine += " WITHOUT ROWID;";
 
-            // Now execute the command on the database
+            // -----------------------------------------
+            // Execute the command on the database
+            // -----------------------------------------
             using (SQLiteCommand command = this.CreateCommand(sqlLine))
             {
                 command.ExecuteNonQuery();
@@ -618,16 +647,17 @@ namespace CrossLite
         /// </summary>
         /// <returns></returns>
         public DbTransaction BeginTransaction() => Connection.BeginTransaction();
+
         /// <summary>
         /// Converts attributes from an <see cref="SQLiteDataReader"/> to an Entity
         /// </summary>
         /// <param name="table">The <see cref="TableMapping"/> for this Entity</param>
         /// <param name="reader">The current, open DataReader object</param>
         /// <returns></returns>
-        protected virtual object ConvertToEntity(TableMapping table, SQLiteDataReader reader)
+        internal TEntity ConvertToEntity<TEntity>(TableMapping table, SQLiteDataReader reader)
         {
             // Use reflection to map the column name to the object Property
-            object entity = Activator.CreateInstance(table.EntityType);
+            TEntity entity = (TEntity)Activator.CreateInstance(table.EntityType);
             for (int i = 0; i < reader.FieldCount; ++i)
             {
                 string attrName = reader.GetName(i);
@@ -666,6 +696,9 @@ namespace CrossLite
                         break;
                 }
             }
+
+            // Foreign keys!
+            table.CreateRelationships(typeof(TEntity), entity, this);
 
             // Add object
             return entity;

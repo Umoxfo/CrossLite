@@ -1,120 +1,206 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Common;
+using System.Data.SQLite;
 using System.Text;
 
 namespace CrossLite.QueryBuilder
 {
     /// <summary>
-    /// Represents an entire WHERE statement inside an SQL query
+    /// Represents a WHERE statement inside an SQL query
     /// </summary>
-    class WhereStatement : List<WhereClause>
+    public class WhereStatement
     {
+        /// <summary>
+        /// Gets the current Clause group in this Statement
+        /// </summary>
+        public WhereClause CurrentClause { get; protected set; }
+
+        /// <summary>
+        /// Gets a list of all Where Clauses in this statement
+        /// </summary>
+        public List<WhereClause> Clauses { get; protected set; }
+
+        /// <summary>
+        /// Gets or Sets the Logic Operator to use inside Clauses
+        /// </summary>
+        public LogicOperator InnerClauseOperator { get; set; } = LogicOperator.And;
+
         /// <summary>
         /// Gets or Sets the Logic Operator to use between Where Clauses
         /// </summary>
-        public LogicOperator StatementOperator = LogicOperator.Or;
+        public LogicOperator OutterClauseOperator { get; set; } = LogicOperator.Or;
 
         /// <summary>
-        /// Adds a new Where clause to the current Where Statement
+        /// Indicates whether this WhereStatement has any clauses, or if its empty.
         /// </summary>
-        /// <param name="fieldName">The Column name</param>
-        /// <param name="Operator">The Comparison Operator to use</param>
-        /// <param name="value">The Value object</param>
-        /// <returns></returns>
-        public WhereClause Add(string fieldName, Comparison @Operator, object value)
+        public bool HasClause { get { return CurrentClause.Expressions.Count > 0; } }
+
+        /// <summary>
+        /// Creates a new instance of <see cref="WhereStatement"/>
+        /// </summary>
+        public WhereStatement()
         {
-            WhereClause Clause = new WhereClause(fieldName, @Operator, value);
-            this.Add(Clause);
-            return Clause;
+            CurrentClause = new WhereClause();
+            Clauses = new List<WhereClause>() { CurrentClause };
         }
 
         /// <summary>
-        /// Builds the Where statement to SQL format
+        /// Ends the current active clause, and creates a new one.
         /// </summary>
-        /// <param name="command">The command object to use, if any. Using a command makes 
-        /// this statement SQL injection safe!</param>
+        protected void CreateNewClause()
+        {
+            // Create new Group
+            CurrentClause = new WhereClause();
+            Clauses.Add(CurrentClause);
+        }
+
+        /// <summary>
+        /// Appends a new expression evaluation to the current Statement
+        /// </summary>
+        /// <param name="fieldName">The attribute name we are performing the evaluation on</param>
+        /// <param name="operator">The Comparison we are performing on this attribute</param>
+        /// <param name="value">The value at which we require in this evaluation</param>
+        /// <param name="literal">If true, than the value will not be escaped and quoted during the query</param>
+        /// <returns>Returns this object to allow method chaining</returns>
+        public WhereStatement And(string fieldName, Comparison @operator, object value, bool literal = false)
+        {
+            // Create new Group
+            if (InnerClauseOperator == LogicOperator.Or && HasClause)
+                this.CreateNewClause();
+
+            // Convert value
+            if (literal)
+                CurrentClause.Add(fieldName, @operator, new SqlLiteral(value.ToString()));
+            else
+                CurrentClause.Add(fieldName, @operator, value);
+
+            // Allow chaining
+            return this;
+        }
+
+        /// <summary>
+        /// Appends a new expression evaluation to the current Statement
+        /// </summary>
+        /// <param name="fieldName">The attribute name we are performing the evaluation on</param>
+        /// <param name="operator">The Comparison we are performing on this attribute</param>
+        /// <param name="value">The value at which we require in this evaluation</param>
+        /// <param name="literal">If true, than the value will not be escaped and quoted during the query</param>
+        /// <returns>Returns this object to allow method chaining</returns>
+        public WhereStatement Or(string fieldName, Comparison @operator, object value, bool literal = false)
+        {
+            // Create new Group
+            if (InnerClauseOperator == LogicOperator.And && HasClause)
+                this.CreateNewClause();
+
+            // Add expression
+            CurrentClause.Add(fieldName, @operator, value);
+            return this;
+        }
+
+        /// <summary>
+        /// Builds the current set of Clauses and returns the output as a string.
+        /// </summary>
+        /// <param name="context">An open SQLiteContext to create parameters from</param>
+        /// <param name="parameters">A list of current query parameters</param>
         /// <returns></returns>
-        public string BuildStatement(DbCommand command)
+        public string BuildStatement(SQLiteContext context, out List<SQLiteParameter> parameters)
+        {
+            parameters = new List<SQLiteParameter>();
+            return BuildStatement(context, parameters);
+        }
+
+        /// <summary>
+        /// Builds the current set of Clauses and returns the output as a string.
+        /// </summary>
+        /// <param name="context">An open SQLiteContext to create parameters from</param>
+        /// <param name="parameters">A list of current query parameters</param>
+        /// <returns></returns>
+        public string BuildStatement(SQLiteContext context, List<SQLiteParameter> parameters)
         {
             StringBuilder builder = new StringBuilder();
+            int paramsCounter = parameters.Count;
             int counter = 0;
 
             // Loop through each Where clause (wrapped in parenthesis)
-            foreach (WhereClause parentClause in this)
+            foreach (WhereClause clause in Clauses)
             {
                 // Open Parent Clause grouping if we have more then 1 SubClause
-                if (parentClause.Count > 1)
-                    builder.Append("(");
-
-                // SubClause Counter
                 int subCounter = 0;
+                builder.AppendIf(clause.Expressions.Count > 1, "(");
 
                 // Append each Sub Clause
-                foreach (WhereClause.SubClause clause in parentClause)
+                foreach (SqlExpression expression in clause.Expressions)
                 {
                     // If we have more sub clauses in this group, append operator
-                    if (++subCounter > 1)
-                        builder.Append((clause.LogicOperator == LogicOperator.Or) ? " OR " : " AND ");
+                    builder.AppendIf(++subCounter > 1, (InnerClauseOperator == LogicOperator.Or) ? " OR " : " AND ");
 
                     // If using a command, Convert values to Parameters for SQL safety
-                    if (command != null && clause.Value != null && clause.Value != DBNull.Value && !(clause.Value is SqlLiteral))
+                    if (expression.Value != null && expression.Value != DBNull.Value && !(expression.Value is SqlLiteral))
                     {
-                        if (clause.ComparisonOperator == Comparison.Between || clause.ComparisonOperator == Comparison.NotBetween)
+                        // --------------------------------------
+                        // BETWEEN and NOT BETWEEN
+                        //--------------------------------------
+                        if (expression.ComparisonOperator == Comparison.Between || expression.ComparisonOperator == Comparison.NotBetween)
                         {
                             // Add the between values to the command parameters
-                            object[] Between = ((object[])clause.Value);
-                            DbParameter Param1 = command.CreateParameter();
-                            Param1.ParameterName = "@P" + command.Parameters.Count;
-                            Param1.Value = Between[0].ToString();
-                            DbParameter Param2 = command.CreateParameter();
-                            Param2.ParameterName = "@P" + (command.Parameters.Count + 1);
-                            Param2.Value = Between[1].ToString();
+                            object[] between = ((object[])expression.Value);
+
+                            SQLiteParameter param1 = context.CreateParam();
+                            param1.ParameterName = "@P" + parameters.Count;
+                            param1.Value = between[0].ToString();
+
+                            SQLiteParameter param2 = context.CreateParam();
+                            param2.ParameterName = "@P" + (parameters.Count + 1);
+                            param2.Value = between[1].ToString();
 
                             // Add Params to command
-                            command.Parameters.Add(Param1);
-                            command.Parameters.Add(Param2);
+                            parameters.Add(param1);
+                            parameters.Add(param2);
 
                             // Add statement
-                           builder.Append( 
-                               CreateComparisonClause(clause.FieldName, clause.ComparisonOperator, (object) new object[2]
-                               {
-                                    (object) new SqlLiteral(Param1.ParameterName),
-                                    (object) new SqlLiteral(Param2.ParameterName)
-                               })
-                            );
+                            builder.Append(
+                                CreateComparisonClause(expression.FieldName, expression.ComparisonOperator, (object)new object[2]
+                                {
+                                    (object) new SqlLiteral(param1.ParameterName),
+                                    (object) new SqlLiteral(param2.ParameterName)
+                                })
+                             );
                         }
+
+                        // --------------------------------------
+                        // All Other Clauses
+                        //--------------------------------------
                         else
                         {
                             // Create param for value
-                            DbParameter Param = command.CreateParameter();
-                            Param.ParameterName = "@P" + command.Parameters.Count;
-                            Param.Value = clause.Value;
+                            SQLiteParameter param = context.CreateParam();
+                            param.ParameterName = "@P" + parameters.Count;
+                            param.Value = expression.Value;
 
                             // Add Params to command
-                            command.Parameters.Add(Param);
+                            parameters.Add(param);
 
                             // Add statement
                             builder.Append(
                                 CreateComparisonClause(
-                                    clause.FieldName, 
-                                    clause.ComparisonOperator, 
-                                    new SqlLiteral(Param.ParameterName)
+                                    expression.FieldName,
+                                    expression.ComparisonOperator,
+                                    new SqlLiteral(param.ParameterName)
                                 )
                             );
                         }
                     }
-                    else
-                        builder.Append(CreateComparisonClause(clause.FieldName, clause.ComparisonOperator, clause.Value));
+                    else // Null values
+                    {
+                        builder.Append(CreateComparisonClause(expression.FieldName, expression.ComparisonOperator, expression.Value));
+                    }
                 }
 
                 // Close Parent Clause grouping
-                if (parentClause.Count > 1)
-                    builder.Append(")");
+                builder.AppendIf(clause.Expressions.Count > 1, ")");
 
                 // If we have more clauses, append operator
-                if (++counter < this.Count)
-                    builder.Append( (StatementOperator == LogicOperator.Or) ? " OR " : " AND " );
+                builder.AppendIf(++counter < Clauses.Count, (OutterClauseOperator == LogicOperator.Or) ? " OR " : " AND ");
             }
 
             return builder.ToString();
@@ -124,10 +210,10 @@ namespace CrossLite.QueryBuilder
         /// Formats, using the correct Comparaison Operator, The clause to SQL.
         /// </summary>
         /// <param name="fieldName">The Clause Column name</param>
-        /// <param name="comparisonOperator">The Comparison Operator</param>
+        /// <param name="comparison">The Comparison Operator</param>
         /// <param name="value">The Value object</param>
         /// <returns>Clause formatted to SQL</returns>
-        public static string CreateComparisonClause(string fieldName, Comparison comparisonOperator, object value)
+        public static string CreateComparisonClause(string fieldName, Comparison comparison, object value)
         {
             // Correct
             fieldName = SQLiteContext.Escape(fieldName);
@@ -135,7 +221,7 @@ namespace CrossLite.QueryBuilder
             // Only 2 options for null values
             if (value == null || value == DBNull.Value)
             {
-                switch (comparisonOperator)
+                switch (comparison)
                 {
                     case Comparison.Equals:
                         return $"{fieldName} IS NULL";
@@ -145,7 +231,7 @@ namespace CrossLite.QueryBuilder
             }
             else
             {
-                switch (comparisonOperator)
+                switch (comparison)
                 {
                     case Comparison.Equals:
                         return $"{fieldName} = {FormatSQLValue(value)}";
@@ -165,7 +251,7 @@ namespace CrossLite.QueryBuilder
                         return $"{fieldName} <= {FormatSQLValue(value)}";
                     case Comparison.In:
                     case Comparison.NotIn:
-                        string str1 = (comparisonOperator == Comparison.NotIn) ? "NOT " : "";
+                        string str1 = (comparison == Comparison.NotIn) ? "NOT " : "";
                         if (value is Array)
                         {
                             Array array = (Array)value;
@@ -182,10 +268,10 @@ namespace CrossLite.QueryBuilder
                     case Comparison.NotBetween:
                         object[] objArray = (object[])value;
                         return String.Format(
-                            "{0}{1} BETWEEN {2} AND {3}", 
-                            ((comparisonOperator == Comparison.NotBetween) ? "NOT " : ""), 
-                            fieldName, 
-                            FormatSQLValue(objArray[0]), 
+                            "{0}{1} BETWEEN {2} AND {3}",
+                            ((comparison == Comparison.NotBetween) ? "NOT " : ""),
+                            fieldName,
+                            FormatSQLValue(objArray[0]),
                             FormatSQLValue(objArray[1])
                         );
                 }

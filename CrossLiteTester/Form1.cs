@@ -45,6 +45,21 @@ namespace CrossLiteTester
                 Account entity = new Account() { Name = "Steve" };
                 db.Users.Add(entity);
 
+                Privilege ent = new Privilege() { Name = "Test" };
+                db.Privs.Add(ent);
+
+                UserPrivilege up = new UserPrivilege()
+                {
+                    PrivilegeId = ent.Id,
+                    UserId = entity.Id
+                };
+                db.UserPrivileges.Add(up);
+
+                foreach (UserPrivilege priv in entity.Privilages)
+                {
+                    var temp = priv.Privilege.Fetch();
+                }
+
                 // Check if entity inserted correctly
                 if (!db.Users.Contains(entity))
                     MessageBox.Show(entity.Name + " does not exist!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -60,11 +75,8 @@ namespace CrossLiteTester
 
                 // Test read
                 entity = db.Users.Where(x => x.Name == "Joey").First();
-                timer.Stop();
-                MessageBox.Show(entity.Name + " :: " + timer.ElapsedMilliseconds);
 
                 // Delete test
-                timer.Start();
                 db.Users.Remove(entity);
                 trans.Commit();
                 entity = (from x in db.Users select x).First();

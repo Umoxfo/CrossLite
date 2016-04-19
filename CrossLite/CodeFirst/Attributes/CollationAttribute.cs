@@ -1,11 +1,12 @@
 ﻿using System;
 
-namespace CrossLite
+namespace CrossLite.CodeFirst
 {
     /// <summary>
+    /// Only used in CodeFirst table creation: <see cref="SQLiteContext.CreateTable{TEntity}(bool)"/>.
+    /// 
     /// The COLLATE clause of the column definition is used to define 
-    /// alternative collating functions for a column. Only used in CodeFirst: 
-    /// <see cref="SQLiteContext.CreateTable{TEntity}(bool)"/>
+    /// alternative collating functions for a column.
     /// </summary>
     public class CollationAttribute : Attribute
     {

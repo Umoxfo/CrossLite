@@ -1,4 +1,5 @@
 ﻿using CrossLite;
+using CrossLite.CodeFirst;
 
 namespace CrossLiteTester
 {
@@ -8,7 +9,7 @@ namespace CrossLiteTester
         [Column(Name: "id")]
         public int Id { get; set; }
 
-        [Column("name"), NotNull, Unique]
+        [Column("name"), Required, Unique]
         public string Name { get; set; }   
     }
 }

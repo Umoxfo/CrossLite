@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace CrossLite
+namespace CrossLite.CodeFirst
 {
     /// <summary>
     /// Represents a SQLite database table. Only used in CodeFirst table 

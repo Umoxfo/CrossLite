@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace CrossLite
+namespace CrossLite.CodeFirst
 {
     /// <summary>
     /// Represents a default value for an Attribute. Only used in CodeFirst 

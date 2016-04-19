@@ -6,7 +6,7 @@ namespace CrossLite
     /// <summary>
     /// This class is used to cache <see cref="TableMapping"/> objects
     /// </summary>
-    internal static class EntityCache
+    public static class EntityCache
     {
         /// <summary>
         /// Gets a list of Entity => table mappings

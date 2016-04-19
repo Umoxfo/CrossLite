@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace CrossLite
+namespace CrossLite.CodeFirst
 {
     /// <summary>
     /// Represents a Primary or Composite Key constraint on the database. 

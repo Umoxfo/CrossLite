@@ -1,11 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace CrossLite
+﻿namespace CrossLite.CodeFirst
 {
+    /// <summary>
+    ///     <para>
+    ///         Referential integrity is a database concept that ensures that relationships 
+    ///         between tables remain consistent.
+    ///     </para>
+    ///     <para>
+    ///         When one table has a foreign key to another table, the concept of referential 
+    ///         integrity states that you may not add a record to the table that contains the 
+    ///         foreign key unless there is a corresponding record in the linked table.
+    ///     </para>
+    ///     <para>
+    ///         Referential integrity also includes the techniques known as cascading update and cascading 
+    ///         delete, which ensure that changes made to the linked table are reflected in the 
+    ///         primary table.
+    ///     </para>
+    /// </summary>
     public enum ReferentialIntegrity
     {
         /// <summary>

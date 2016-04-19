@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
+using CrossLite.CodeFirst;
 
 namespace CrossLite
 {
@@ -36,12 +37,12 @@ namespace CrossLite
         /// <summary>
         /// Gets a collection of Composite Foreign keys on this table
         /// </summary>
-        public IReadOnlyCollection<CompositeForeignKeyAttribute> CompositeForeignKeys { get; protected set; }
+        public IReadOnlyCollection<ForeignKeyInfo> ForeignKeys { get; protected set; }
 
         /// <summary>
         /// Gets a collection of Unique constraints on this table
         /// </summary>
-        public IReadOnlyCollection<CompositeUniqueAttribute> CompositeUnique { get; protected set; }
+        public IReadOnlyCollection<CompositeUniqueAttribute> UniqueConstraints { get; protected set; }
 
         /// <summary>
         /// Indicates whether this Table has a single Primary Key
@@ -60,15 +61,14 @@ namespace CrossLite
         }
 
         /// <summary>
-        /// Gets a collection of foreign keys on this table
+        /// 
         /// </summary>
-        public AttributeInfo[] ForeignKeys
-        {
-            get
-            {
-                return (from x in Columns where x.Value.ForeignKey != null select x.Value).ToArray();
-            }
-        }
+        internal Dictionary<Type, PropertyInfo> Parents { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        internal Dictionary<Type, PropertyInfo> Childs { get; set; }
 
         /// <summary>
         /// Gets the name of the Auto Increment attribute, or NULL
@@ -90,6 +90,8 @@ namespace CrossLite
             // Set critical properties
             this.EntityType = entityType;
             this.TableName = entityType.Name;
+            this.Parents = new Dictionary<Type, PropertyInfo>();
+            this.Childs = new Dictionary<Type, PropertyInfo>();
 
             // Get table related instructions
             var tableAttr = (TableAttribute)entityType.GetCustomAttribute(typeof(TableAttribute));
@@ -99,79 +101,127 @@ namespace CrossLite
                 this.WithoutRowID = tableAttr.WithoutRowID;
             }
 
-            // Check for composite foreign Keys and unique composites
-            CompositeForeignKeys = entityType.GetCustomAttributes<CompositeForeignKeyAttribute>().ToList().AsReadOnly();    
-            CompositeUnique = entityType.GetCustomAttributes<CompositeUniqueAttribute>().ToList().AsReadOnly();
-
             // Temporary variables
             Dictionary<string, AttributeInfo> cols = new Dictionary<string, AttributeInfo>();
             bool hasAutoIncrement = false;
 
             // Get a list of properties from the Entity that represents an Attribute
-            var props = entityType
-                .GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Where(prop => Attribute.IsDefined(prop, typeof(ColumnAttribute)));
+            var props = entityType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
             // Loop through each attribute, and generate an attribute map
             foreach (PropertyInfo property in props)
             {
-                // Create our attribute info class
-                AttributeInfo info = new AttributeInfo();
-                info.Property = property;
+                // Grab type
+                Type type = property.PropertyType;
 
-                // Now itterate through each attribute
-                foreach (Attribute attr in property.GetCustomAttributes())
+                // Column attribute?
+                if (Attribute.IsDefined(property, typeof(ColumnAttribute)))
                 {
-                    Type attrType = attr.GetType();
-                    if (attrType == typeof(ColumnAttribute))
-                    {
-                        // Get our attribute name
-                        ColumnAttribute colAttr = (ColumnAttribute)attr;
-                        info.Name = colAttr.Name ?? property.Name;
-                    }
-                    else if (attrType == typeof(ForeignKeyAttribute))
-                    {
-                        info.ForeignKey = (ForeignKeyAttribute)attr;
-                    }
-                    else if (attrType == typeof(PrimaryKeyAttribute))
-                    {
-                        info.PrimaryKey = true;
-                    }
-                    else if (attrType == typeof(DefaultAttribute))
-                    {
-                        info.DefaultValue = ((DefaultAttribute)attr).Value;
-                    }
-                    else if (attrType == typeof(NotNullAttribute))
-                    {
-                        info.HasNotNullableAttribute = true;
-                    }
-                    else if (attrType == typeof(UniqueAttribute))
-                    {
-                        info.Unique = true;
-                    }
-                    else if (attrType == typeof(CollationAttribute))
-                    {
-                        info.Collation = ((CollationAttribute)attr).Collation;
-                    }
-                    else if (attrType == typeof(AutoIncrementAttribute))
-                    {
-                        // Cannot have more than 1
-                        if (hasAutoIncrement)
-                            throw new EntityException($"Entity `{EntityType.Name}` cannot contain multiple AutoIncrement attributes.");
+                    // Create our attribute info class
+                    AttributeInfo info = new AttributeInfo();
+                    info.Property = property;
 
-                        // set value
-                        info.AutoIncrement = true;
-                        hasAutoIncrement = true;
+                    // Now itterate through each attribute
+                    foreach (Attribute attr in property.GetCustomAttributes())
+                    {
+                        Type attrType = attr.GetType();
+                        if (attrType == typeof(ColumnAttribute))
+                        {
+                            // Get our attribute name
+                            ColumnAttribute colAttr = (ColumnAttribute)attr;
+                            info.Name = colAttr.Name ?? property.Name;
+                        }
+                        else if (attrType == typeof(ForeignKeyAttribute))
+                        {
+                            throw new EntityException($"Invalid foreign key attribute on {entityType.Name}.{property.Name}");
+                        }
+                        else if (attrType == typeof(PrimaryKeyAttribute))
+                        {
+                            info.PrimaryKey = true;
+                        }
+                        else if (attrType == typeof(DefaultAttribute))
+                        {
+                            info.DefaultValue = ((DefaultAttribute)attr).Value;
+                        }
+                        else if (attrType == typeof(RequiredAttribute))
+                        {
+                            info.HasRequiredAttribute = true;
+                        }
+                        else if (attrType == typeof(UniqueAttribute))
+                        {
+                            info.Unique = true;
+                        }
+                        else if (attrType == typeof(CollationAttribute))
+                        {
+                            info.Collation = ((CollationAttribute)attr).Collation;
+                        }
+                        else if (attrType == typeof(AutoIncrementAttribute))
+                        {
+                            // Cannot have more than 1
+                            if (hasAutoIncrement)
+                                throw new EntityException($"Entity `{EntityType.Name}` cannot contain multiple AutoIncrement attributes.");
+
+                            // set value
+                            info.AutoIncrement = true;
+                            hasAutoIncrement = true;
+                        }
+                    }
+
+                    // Add to column list
+                    cols[info.Name] = info;
+                }
+                // Check for foreign key collections
+                else if (property.GetGetMethod().IsVirtual && type.IsGenericType)
+                {
+                    Type def = type.GetGenericTypeDefinition();
+                    type = type.GenericTypeArguments[0];
+                    if (def == typeof(IEnumerable<>))
+                    {
+                        Childs.Add(type, property);
+                    }
+                    else if (def == typeof(ForeignKey<>))
+                    {
+                        Parents.Add(type, property);
                     }
                 }
-
-                // Add to column list
-                cols[info.Name] = info;
             }
+
+            // Check for unique composites  
+            UniqueConstraints = entityType.GetCustomAttributes<CompositeUniqueAttribute>().ToList().AsReadOnly();
 
             // Set internals
             Columns = new ReadOnlyDictionary<string, AttributeInfo>(cols);
             HasPrimaryKey = this.CompositeKeys.Length == 1;
+
+            // ------------------------------------
+            // Always perform this last!
+            // ------------------------------------
+
+            // Get a list of properties that are foreign keys
+            List<ForeignKeyInfo> fks = new List<ForeignKeyInfo>();
+            props = entityType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Where(prop => Attribute.IsDefined(prop, typeof(ForeignKeyAttribute))).ToArray();
+
+            // Loop through each attribute, and generate an attribute map
+            foreach (PropertyInfo property in props)
+            {
+                var fkey = (ForeignKeyAttribute)property.GetCustomAttribute(typeof(ForeignKeyAttribute));
+                var inverse = (InverseKeyAttribute)property.GetCustomAttribute(typeof(InverseKeyAttribute));
+
+                if (property.PropertyType.BaseType != typeof(ForeignKey<>).BaseType)
+                    continue;
+
+                // Create ForeignKeyInfo
+                ForeignKeyInfo info = new ForeignKeyInfo(this, 
+                    property.PropertyType.GetGenericArguments()[0], 
+                    fkey, 
+                    inverse ?? new InverseKeyAttribute(fkey.Attributes)
+                );
+
+                fks.Add(info);
+            }
+
+            ForeignKeys = fks.AsReadOnly();
         }
 
         /// <summary>
@@ -185,6 +235,26 @@ namespace CrossLite
                 throw new Exception("Entity type \"" + EntityType.Name + "\" does not contain a definition for \"" + attributeName + "\"");
 
             return Columns[attributeName];
+        }
+
+        internal void CreateRelationships(Type entityType, object entity, SQLiteContext context)
+        {
+            if (entityType != EntityType)
+                throw new ArgumentException("Invalid Entity type passed", "entityType");
+
+            foreach (var parent in this.Parents)
+            {
+                Type fkT = typeof(ForeignKey<>).MakeGenericType(parent.Key);
+                var fk = Activator.CreateInstance(fkT, entity, context);
+                parent.Value.SetValue(entity, fk);
+            }
+
+            foreach (var parent in this.Childs)
+            {
+                Type ckT = typeof(ChildDbSet<,>).MakeGenericType(entityType, parent.Key);
+                var ck = Activator.CreateInstance(ckT, entity, context);
+                parent.Value.SetValue(entity, ck);
+            }
         }
     }
 }

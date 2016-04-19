@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Data.SQLite;
 using System.Linq;
 using System.Text;
 
@@ -13,7 +14,7 @@ namespace CrossLite.QueryBuilder
     /// All parameters in the WHERE and HAVING statements will be escaped by the underlaying
     /// DbCommand object, making the Execute*() methods SQL injection safe.
     /// </remarks>
-    class SelectQueryBuilder
+    public class SelectQueryBuilder
     {
         #region Internal Properties
 
@@ -23,7 +24,7 @@ namespace CrossLite.QueryBuilder
         protected List<JoinClause> Joins = new List<JoinClause>();
         protected List<string> GroupByColumns = new List<string>();
         protected int[] LimitRecords = null;
-        protected SQLiteContext Driver;
+        protected SQLiteContext Context;
 
         #endregion
 
@@ -33,6 +34,16 @@ namespace CrossLite.QueryBuilder
         /// Gets or Sets whether this Select statement will be distinct
         /// </summary>
         public bool Distinct = false;
+
+        /// <summary>
+        /// The Where statement for this query
+        /// </summary>
+        public WhereStatement WhereStatement { get; set; } = new WhereStatement();
+
+        /// <summary>
+        /// The Having statement for this query
+        /// </summary>
+        public WhereStatement HavingStatement { get; set; } = new WhereStatement();
 
         /// <summary>
         /// The selected columns for this query. We convert to an array,
@@ -46,32 +57,16 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public string[] SelectedTables => this.selectedTables.ToArray();
 
-        /// <summary>
-        /// The Where statement for this query
-        /// </summary>
-        public WhereStatement WhereStatement = new WhereStatement();
-
-        /// <summary>
-        /// The Having statement for this query
-        /// </summary>
-        public WhereStatement HavingStatement = new WhereStatement();
-
         #endregion
 
         /// <summary>
         /// Creates a new instance of SelectQueryBuilder with the provided Database Driver.
         /// </summary>
-        /// <param name="Driver">The DatabaseDriver that will be used to query this SQL statement</param>
-        public SelectQueryBuilder(SQLiteContext Driver)
+        /// <param name="context">The DatabaseDriver that will be used to query this SQL statement</param>
+        public SelectQueryBuilder(SQLiteContext context)
         {
-            this.Driver = Driver;
+            this.Context = context;
         }
-
-        /// <summary>
-        /// Sets the database driver
-        /// </summary>
-        /// <param name="Driver">The database driver for this SQL statement</param>
-        public void SetDbDriver(SQLiteContext Driver) => this.Driver = Driver;
 
         #region Select Cols
 
@@ -112,9 +107,12 @@ namespace CrossLite.QueryBuilder
         /// <param name="columns">The column names to select</param>
         public void SelectColumns(params string[] columns)
         {
-            this.selectedColumns.Clear();
-            foreach (string str in columns)
-                this.selectedColumns.Add(str);
+            this.selectedColumns = new List<string>(columns);
+        }
+
+        public void SelectColumns(IEnumerable<string> columns)
+        {
+            this.selectedColumns = new List<string>(columns);
         }
 
         #endregion Select Cols
@@ -178,26 +176,12 @@ namespace CrossLite.QueryBuilder
         /// <param name="operator">The Comaparison Operator to use</param>
         /// <param name="compareValue">The value, for the column name and comparison operator</param>
         /// <returns></returns>
-        public WhereClause AddWhere(string field, Comparison @operator, object compareValue)
+        public WhereStatement Where(string field, Comparison @operator, object compareValue)
         {
-            WhereClause Clause = new WhereClause(field, @operator, compareValue);
-            this.WhereStatement.Add(Clause);
-            return Clause;
-        }
-
-        /// <summary>
-        /// Adds a where clause to the current query statement
-        /// </summary>
-        /// <param name="Clause"></param>
-        public void AddWhere(WhereClause Clause) => this.WhereStatement.Add(Clause);
-
-        /// <summary>
-        /// Sets the Logic Operator for the WHERE statement
-        /// </summary>
-        /// <param name="Operator"></param>
-        public void SetWhereOperator(LogicOperator @Operator)
-        {
-            this.WhereStatement.StatementOperator = @Operator;
+            if (WhereStatement.InnerClauseOperator == LogicOperator.And)
+                return WhereStatement.And(field, @operator, compareValue);
+            else
+                return WhereStatement.Or(field, @operator, compareValue);
         }
 
         #endregion Wheres
@@ -225,25 +209,12 @@ namespace CrossLite.QueryBuilder
 
         #region Having
 
-        public WhereClause AddHaving(string field, Comparison @operator, object compareValue)
+        public WhereStatement Having(string field, Comparison @operator, object compareValue)
         {
-            WhereClause Clause = new WhereClause(field, @operator, compareValue);
-            this.HavingStatement.Add(Clause);
-            return Clause;
-        }
-
-        public void AddHaving(WhereClause Clause)
-        {
-            this.HavingStatement.Add(Clause);
-        }
-
-        /// <summary>
-        /// Sets the Logic Operator for the WHERE statement
-        /// </summary>
-        /// <param name="Operator"></param>
-        public void SetHavingOperator(LogicOperator @Operator)
-        {
-            this.HavingStatement.StatementOperator = @Operator;
+            if (HavingStatement.InnerClauseOperator == LogicOperator.And)
+                return HavingStatement.And(field, @operator, compareValue);
+            else
+                return HavingStatement.Or(field, @operator, compareValue);
         }
 
         #endregion Having
@@ -274,7 +245,7 @@ namespace CrossLite.QueryBuilder
         /// are propery escaped, making this command SQL Injection safe.
         /// </summary>
         /// <returns></returns>
-        public DbCommand BuildCommand() => BuildQuery(true) as DbCommand;
+        public SQLiteCommand BuildCommand() => BuildQuery(true) as SQLiteCommand;
 
         /// <summary>
         /// Builds the query string or DbCommand
@@ -284,15 +255,12 @@ namespace CrossLite.QueryBuilder
         protected object BuildQuery(bool BuildCommand)
         {
             // Make sure we have a valid DB driver
-            if (BuildCommand && Driver == null)
+            if (BuildCommand && Context == null)
                 throw new Exception("Cannot build a command when the Db Drvier hasn't been specified. Call SetDbDriver first.");
 
             // Make sure we have a table name
             if (selectedTables.Count == 0)
                 throw new Exception("No tables were specified for this query.");
-
-            // Create Command
-            DbCommand Command = (BuildCommand) ? Driver.CreateCommand(null) : null;
 
             // Start Query
             StringBuilder Query = new StringBuilder("SELECT ");
@@ -338,22 +306,24 @@ namespace CrossLite.QueryBuilder
                 }
             }
 
+            // Params
+            List<SQLiteParameter> parameters = new List<SQLiteParameter>();
 
             // Append Where
-            if (this.WhereStatement.Count != 0)
-                Query.Append(" WHERE " + WhereStatement.BuildStatement(Command));
+            if (WhereStatement.HasClause)
+                Query.Append(" WHERE " + WhereStatement.BuildStatement(Context, parameters));
 
             // Append GroupBy
             if (GroupByColumns.Count > 0)
                 Query.Append(" GROUP BY " + String.Join(", ", GroupByColumns));
 
             // Append Having
-            if (HavingStatement.Count > 0)
+            if (HavingStatement.HasClause)
             {
                 if (GroupByColumns.Count == 0)
                     throw new Exception("Having statement was set without Group By");
 
-                Query.Append(" HAVING " + this.HavingStatement.BuildStatement(Command));
+                Query.Append(" HAVING " + HavingStatement.BuildStatement(Context, parameters));
             }
 
             // Append OrderBy
@@ -382,12 +352,16 @@ namespace CrossLite.QueryBuilder
                     Query.Append($" LIMIT {LimitRecords[1]}, {LimitRecords[0]}");
             }
 
-            // Set the command text
+            // Create Command
+            SQLiteCommand command = null;
             if (BuildCommand)
-                Command.CommandText = Query.ToString();
+            {
+                command = Context.CreateCommand(Query.ToString());
+                command.Parameters.AddRange(parameters.ToArray());
+            }
 
             // Return Result
-            return (BuildCommand) ? Command as object : Query.ToString();
+            return (BuildCommand) ? command as object : Query.ToString();
         }
 
         /// <summary>
@@ -397,7 +371,7 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public T ExecuteScalar<T>() where T : IConvertible
         {
-            return Driver.ExecuteScalar<T>(BuildCommand());
+            return Context.ExecuteScalar<T>(BuildCommand());
         }
     }
 }

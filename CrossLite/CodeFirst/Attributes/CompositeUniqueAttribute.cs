@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace CrossLite
+namespace CrossLite.CodeFirst
 {
     /// <summary>
     /// Represents a Unique attribute constraint of values. Only used in CodeFirst table 

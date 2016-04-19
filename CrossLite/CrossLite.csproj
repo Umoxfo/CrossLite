@@ -46,23 +46,25 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AttributeInfo.cs" />
-    <Compile Include="Attributes\AutoIncrementAttribute.cs" />
-    <Compile Include="Attributes\CollationAttribute.cs" />
-    <Compile Include="Attributes\ColumnAttribute.cs" />
-    <Compile Include="Attributes\CompositeForeignKeyAttribute.cs" />
-    <Compile Include="Attributes\CompositeUniqueAttribute.cs" />
-    <Compile Include="Attributes\DefaultAttribute.cs" />
-    <Compile Include="Attributes\ForeignKeyAttribute.cs" />
-    <Compile Include="Attributes\NotNullAttribute.cs" />
-    <Compile Include="Attributes\PrimaryKeyAttribute.cs" />
-    <Compile Include="Attributes\TableAttribute.cs" />
-    <Compile Include="Attributes\UniqueAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\AutoIncrementAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\CollationAttribute.cs" />
+    <Compile Include="ColumnAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\CompositeUniqueAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\DefaultAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\ForeignKeyAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\InverseKeyAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\RequiredAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\PrimaryKeyAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\TableAttribute.cs" />
+    <Compile Include="CodeFirst\Attributes\UniqueAttribute.cs" />
+    <Compile Include="CodeFirst\ChildDbSet.cs" />
     <Compile Include="DbConnectException.cs" />
     <Compile Include="DbSet.cs" />
     <Compile Include="EntityCache.cs" />
     <Compile Include="EntityException.cs" />
     <Compile Include="Extensions\StringBuilderExtensions.cs" />
     <Compile Include="Extensions\TypeExtensions.cs" />
+    <Compile Include="CodeFirst\ForeignKeyInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="QueryBuilder\Enum.cs" />
     <Compile Include="QueryBuilder\InsertQueryBuilder.cs" />
@@ -71,12 +73,15 @@
     <Compile Include="QueryBuilder\SelectQueryBuilder.cs" />
     <Compile Include="QueryBuilder\SqlLiteral.cs" />
     <Compile Include="QueryBuilder\UpdateQueryBuilder.cs" />
-    <Compile Include="QueryBuilder\WhereClause.cs" />
-    <Compile Include="QueryBuilder\WhereStatement.cs" />
-    <Compile Include="ReferentialIntegrity.cs" />
+    <Compile Include="CodeFirst\ForeignKey.cs" />
+    <Compile Include="CodeFirst\ReferentialIntegrity.cs" />
     <Compile Include="SQLiteContext.cs" />
     <Compile Include="SQLiteDataType.cs" />
+    <Compile Include="CodeFirst\TableCreationOptions.cs" />
     <Compile Include="TableMapping.cs" />
+    <Compile Include="QueryBuilder\SqlExpression.cs" />
+    <Compile Include="QueryBuilder\WhereClause.cs" />
+    <Compile Include="QueryBuilder\WhereStatement.cs" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

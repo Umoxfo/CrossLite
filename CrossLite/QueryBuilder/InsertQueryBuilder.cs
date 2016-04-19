@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Data.SQLite;
 using System.Text;
 
 namespace CrossLite.QueryBuilder
@@ -98,7 +99,7 @@ namespace CrossLite.QueryBuilder
         /// are propery escaped, making this command SQL Injection safe.
         /// </summary>
         /// <returns></returns>
-        public DbCommand BuildCommand() => BuildQuery(true) as DbCommand;
+        public SQLiteCommand BuildCommand() => BuildQuery(true) as SQLiteCommand;
 
         /// <summary>
         /// Builds the query string or DbCommand
@@ -119,12 +120,10 @@ namespace CrossLite.QueryBuilder
             if (Fields.Count == 0)
                 throw new Exception("No fields to insert");
 
-            // Create Command
-            DbCommand Command = (buildCommand) ? Context.CreateCommand(null) : null;
-
             // Start Query
             StringBuilder query = new StringBuilder($"INSERT INTO {SQLiteContext.Escape(Table)} (");
             StringBuilder values = new StringBuilder();
+            List<SQLiteParameter> parameters = new List<SQLiteParameter>();
             bool first = true;
 
             // Add fields and values
@@ -143,12 +142,12 @@ namespace CrossLite.QueryBuilder
                 if (buildCommand && Item.Value != null && Item.Value != DBNull.Value && !(Item.Value is SqlLiteral))
                 {
                     // Create param for value
-                    DbParameter Param = Command.CreateParameter();
-                    Param.ParameterName = "@P" + Command.Parameters.Count;
+                    SQLiteParameter Param = Context.CreateParam();
+                    Param.ParameterName = "@P" + parameters.Count;
                     Param.Value = Item.Value;
 
                     // Add Params to command
-                    Command.Parameters.Add(Param);
+                    parameters.Add(Param);
 
                     // Append query's
                     query.Append(SQLiteContext.Escape(Item.Key));
@@ -164,9 +163,16 @@ namespace CrossLite.QueryBuilder
             // Finish the query string, and return the proper object
             query.AppendFormat(") VALUES ({0})", values);
 
-            // Set the command text
-            if (buildCommand) Command.CommandText = query.ToString();
-            return (buildCommand) ? Command as object : query.ToString();
+            // Create Command
+            SQLiteCommand command = null;
+            if (buildCommand)
+            {
+                command = Context.CreateCommand(query.ToString());
+                command.Parameters.AddRange(parameters.ToArray());
+            }
+
+            // Return Result
+            return (buildCommand) ? command as object : query.ToString();
         }
 
         /// <summary>
@@ -176,8 +182,8 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public int Execute()
         {
-            using (DbCommand Command = BuildCommand())
-                return Command.ExecuteNonQuery();
+            using (SQLiteCommand command = BuildCommand())
+                return command.ExecuteNonQuery();
         }
 
         #endregion Query

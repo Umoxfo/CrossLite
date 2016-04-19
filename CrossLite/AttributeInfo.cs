@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using CrossLite.CodeFirst;
 
 namespace CrossLite
 {
@@ -15,7 +16,8 @@ namespace CrossLite
         public bool PrimaryKey { get; internal set; } = false;
 
         /// <summary>
-        /// Indicates whether this attribute Auto Increments (Must be a Key!)
+        /// Indicates whether this attribute Auto Increments (Must be a Key!).
+        /// AUTOINCREMENT is to prevent the reuse of ROWIDs from previously deleted rows.
         /// </summary>
         public bool AutoIncrement { get; internal set; } = false;
 
@@ -30,9 +32,10 @@ namespace CrossLite
         public object DefaultValue { get; internal set; } = null;
 
         /// <summary>
-        /// Indicates whether this Attribute is forcibly NOT NULL
+        /// Indicates whether this Attribute Requires a value and
+        /// cannot be NULL during Entity insertion into the database
         /// </summary>
-        public bool HasNotNullableAttribute { get; internal set; } = false;
+        public bool HasRequiredAttribute { get; internal set; } = false;
 
         /// <summary>
         /// Gets the COLLATE type definition that is used to define alternative 

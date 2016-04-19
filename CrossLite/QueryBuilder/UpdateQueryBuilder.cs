@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Data.SQLite;
 using System.Text;
 
 namespace CrossLite.QueryBuilder
@@ -19,7 +20,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// The table name to query
         /// </summary>
-        public string Table;
+        public string Table { get; set; }
 
         /// <summary>
         /// A list of FieldValuePairs
@@ -27,19 +28,14 @@ namespace CrossLite.QueryBuilder
         protected Dictionary<string, FieldValuePair> Fields = new Dictionary<string, FieldValuePair>();
 
         /// <summary>
-        /// Query's where statement
+        /// The Where statement for this query
         /// </summary>
-        protected WhereStatement WhereStatement = new WhereStatement();
+        public WhereStatement WhereStatement { get; set; } = new WhereStatement();
 
         /// <summary>
         /// The database driver, if using the "BuildCommand" method
         /// </summary>
         protected SQLiteContext Context;
-
-        /// <summary>
-        /// Column name escape delimiter
-        /// </summary>
-        internal static char EscapeChar { get; set; } = '`';
 
         #endregion Properties
 
@@ -97,25 +93,12 @@ namespace CrossLite.QueryBuilder
 
         #region Where's
 
-        public WhereClause AddWhere(string field, Comparison @operator, object compareValue)
+        public WhereStatement Where(string field, Comparison @operator, object compareValue)
         {
-            WhereClause Clause = new WhereClause(field, @operator, compareValue);
-            this.WhereStatement.Add(Clause);
-            return Clause;
-        }
-
-        public void AddWhere(WhereClause clause)
-        {
-            this.WhereStatement.Add(clause);
-        }
-
-        /// <summary>
-        /// Sets the Logic Operator for the WHERE statement
-        /// </summary>
-        /// <param name="Operator"></param>
-        public void SetWhereOperator(LogicOperator @Operator)
-        {
-            this.WhereStatement.StatementOperator = @Operator;
+            if (WhereStatement.InnerClauseOperator == LogicOperator.And)
+                return WhereStatement.And(field, @operator, compareValue);
+            else
+                return WhereStatement.Or(field, @operator, compareValue);
         }
 
         #endregion Where's
@@ -129,15 +112,6 @@ namespace CrossLite.QueryBuilder
         public void SetTable(string table)
         {
             this.Table = table;
-        }
-
-        /// <summary>
-        /// Sets the database context for this query
-        /// </summary>
-        /// <param name="context"></param>
-        public void SetContext(SQLiteContext context)
-        {
-            this.Context = context;
         }
 
         #endregion Set Methods
@@ -155,7 +129,7 @@ namespace CrossLite.QueryBuilder
         /// are propery escaped, making this command SQL Injection safe.
         /// </summary>
         /// <returns></returns>
-        public DbCommand BuildCommand() => BuildQuery(true) as DbCommand;
+        public SQLiteCommand BuildCommand() => BuildQuery(true) as SQLiteCommand;
 
         /// <summary>
         /// Builds the query string or DbCommand
@@ -176,53 +150,58 @@ namespace CrossLite.QueryBuilder
             if (Fields.Count == 0)
                 throw new Exception("No fields to update");
 
-            // Create Command
-            DbCommand command = (buildCommand) ? Context.CreateCommand(null) : null;
-
             // Start Query
             StringBuilder query = new StringBuilder($"UPDATE {SQLiteContext.Escape(Table)} SET ");
+            List<SQLiteParameter> parameters = new List<SQLiteParameter>();
 
             // Add Fields
-            bool First = true;
-            foreach (KeyValuePair<string, FieldValuePair> Pair in Fields)
+            bool first = true;
+            foreach (KeyValuePair<string, FieldValuePair> field in Fields)
             {
                 // Append comma
-                if (!First) query.Append(", ");
-                else First = false;
+                if (!first) query.Append(", ");
+                else first = false;
 
                 // If using a command, Convert values to Parameters
-                if (buildCommand && Pair.Value.Value != null && Pair.Value.Value != DBNull.Value && !(Pair.Value.Value is SqlLiteral))
+                if (buildCommand && field.Value.Value != null && field.Value.Value != DBNull.Value && !(field.Value.Value is SqlLiteral))
                 {
                     // Create param for value
-                    DbParameter Param = command.CreateParameter();
-                    Param.ParameterName = "@P" + command.Parameters.Count;
-                    Param.Value = Pair.Value.Value;
+                    SQLiteParameter param = Context.CreateParam();
+                    param.ParameterName = "@P" + parameters.Count;
+                    param.Value = field.Value.Value;
 
                     // Add Params to command
-                    command.Parameters.Add(Param);
+                    parameters.Add(param);
 
                     // Append Query
-                    if (Pair.Value.Mode == ValueMode.Set)
-                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(Pair.Key), Param.ParameterName);
+                    if (field.Value.Mode == ValueMode.Set)
+                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(field.Key), param.ParameterName);
                     else
-                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.Escape(Pair.Key), GetSign(Pair.Value.Mode), Param.ParameterName);
+                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.Escape(field.Key), GetSign(field.Value.Mode), param.ParameterName);
                 }
                 else
                 {
-                    if (Pair.Value.Mode == ValueMode.Set)
-                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(Pair.Key), WhereStatement.FormatSQLValue(Pair.Value.Value));
+                    if (field.Value.Mode == ValueMode.Set)
+                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(field.Key), WhereStatement.FormatSQLValue(field.Value.Value));
                     else
-                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.Escape(Pair.Key), 
-                            GetSign(Pair.Value.Mode), WhereStatement.FormatSQLValue(Pair.Value.Value));
+                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.Escape(field.Key), 
+                            GetSign(field.Value.Mode), WhereStatement.FormatSQLValue(field.Value.Value));
                 }
             }
 
             // Append Where
-            if (this.WhereStatement.Count != 0)
-                query.Append(" WHERE " + this.WhereStatement.BuildStatement(command));
+            if (WhereStatement.HasClause)
+                query.Append(" WHERE " + WhereStatement.BuildStatement(Context, parameters));
 
-            // Set the command text
-            if (buildCommand) command.CommandText = query.ToString();
+            // Create Command
+            SQLiteCommand command = null;
+            if (buildCommand)
+            {
+                command = Context.CreateCommand(query.ToString());
+                command.Parameters.AddRange(parameters.ToArray());
+            }
+
+            // Return Result
             return (buildCommand) ? command as object : query.ToString();
         }
 
@@ -232,8 +211,8 @@ namespace CrossLite.QueryBuilder
         /// <returns></returns>
         public int Execute()
         {
-            using (DbCommand Command = BuildCommand())
-                return Command.ExecuteNonQuery();
+            using (SQLiteCommand command = BuildCommand())
+                return command.ExecuteNonQuery();
         }
 
         /// <summary>
