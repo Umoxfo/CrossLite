@@ -9,8 +9,9 @@ using CrossLite.QueryBuilder;
 namespace CrossLite
 {
     /// <summary>
-    /// A <see cref="DbSet{TEntity}"/> represents a collection
-    /// of Entities (Aka: rows) in the SQLite database.
+    /// A <see cref="DbSet{TEntity}"/> represents the collection
+    /// of all Entities (rows of data) in the context that can be 
+    /// queried from the database.
     /// </summary>
     /// <typeparam name="TEntity"></typeparam>
     public class DbSet<TEntity> : IEnumerable<TEntity>

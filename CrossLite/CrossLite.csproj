@@ -48,6 +48,7 @@
     <Compile Include="AttributeInfo.cs" />
     <Compile Include="CodeFirst\Attributes\AutoIncrementAttribute.cs" />
     <Compile Include="CodeFirst\Attributes\CollationAttribute.cs" />
+    <Compile Include="CodeFirst\Extensions\CodeFirstSQLite.cs" />
     <Compile Include="ColumnAttribute.cs" />
     <Compile Include="CodeFirst\Attributes\CompositeUniqueAttribute.cs" />
     <Compile Include="CodeFirst\Attributes\DefaultAttribute.cs" />
@@ -67,6 +68,7 @@
     <Compile Include="CodeFirst\ForeignKeyInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="QueryBuilder\Enum.cs" />
+    <Compile Include="QueryBuilder\ResultColumn.cs" />
     <Compile Include="QueryBuilder\InsertQueryBuilder.cs" />
     <Compile Include="QueryBuilder\JoinClause.cs" />
     <Compile Include="QueryBuilder\OrderByClause.cs" />

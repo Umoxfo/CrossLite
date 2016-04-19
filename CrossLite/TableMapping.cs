@@ -237,6 +237,12 @@ namespace CrossLite
             return Columns[attributeName];
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="entityType"></param>
+        /// <param name="entity"></param>
+        /// <param name="context"></param>
         internal void CreateRelationships(Type entityType, object entity, SQLiteContext context)
         {
             if (entityType != EntityType)

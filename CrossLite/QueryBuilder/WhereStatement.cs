@@ -145,11 +145,11 @@ namespace CrossLite.QueryBuilder
                             // Add the between values to the command parameters
                             object[] between = ((object[])expression.Value);
 
-                            SQLiteParameter param1 = context.CreateParam();
+                            SQLiteParameter param1 = context.CreateParameter();
                             param1.ParameterName = "@P" + parameters.Count;
                             param1.Value = between[0].ToString();
 
-                            SQLiteParameter param2 = context.CreateParam();
+                            SQLiteParameter param2 = context.CreateParameter();
                             param2.ParameterName = "@P" + (parameters.Count + 1);
                             param2.Value = between[1].ToString();
 
@@ -173,7 +173,7 @@ namespace CrossLite.QueryBuilder
                         else
                         {
                             // Create param for value
-                            SQLiteParameter param = context.CreateParam();
+                            SQLiteParameter param = context.CreateParameter();
                             param.ParameterName = "@P" + parameters.Count;
                             param.Value = expression.Value;
 
@@ -207,7 +207,8 @@ namespace CrossLite.QueryBuilder
         }
 
         /// <summary>
-        /// Formats, using the correct Comparaison Operator, The clause to SQL.
+        /// Formats, using the correct Comparaison Operator, The clause to SQL. The fieldName
+        /// will be escaped automatically.
         /// </summary>
         /// <param name="fieldName">The Clause Column name</param>
         /// <param name="comparison">The Comparison Operator</param>

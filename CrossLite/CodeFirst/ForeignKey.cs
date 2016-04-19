@@ -81,8 +81,7 @@ namespace CrossLite.CodeFirst
 
                 // Build the SQL query
                 SelectQueryBuilder builder = new SelectQueryBuilder(context);
-                builder.SelectColumns(table.Columns.Select(x => SQLiteContext.Escape(x.Key)));
-                builder.SelectFromTable(table.TableName);
+                builder.From(table.TableName).Select(table.Columns.Keys);
                 builder.WhereStatement = Statement;
 
                 // Execute the Data Reader

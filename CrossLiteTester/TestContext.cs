@@ -23,6 +23,8 @@ namespace CrossLiteTester
             // Connect to the SQLite database file
             base.Connect();
 
+            SQLiteContext.EscapeCharacters = new char[2] { '`', '`' };
+
             // Setup our Database Sets
             this.Users = new DbSet<Account>(this);
             this.Privs = new DbSet<Privilege>(this);

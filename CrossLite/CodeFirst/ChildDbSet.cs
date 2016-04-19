@@ -62,8 +62,7 @@ namespace CrossLite.CodeFirst
                 {
                     // Begin a new Select Query
                     SelectQuery = new SelectQueryBuilder(context);
-                    SelectQuery.SelectFromTable(table.TableName);
-                    SelectQuery.SelectColumns(table.Columns.Select(x => SQLiteContext.Escape(x.Key)));
+                    SelectQuery.From(table.TableName).Select(table.Columns.Keys);
 
                     // Define types
                     Type childType = typeof(TChildEntity);

@@ -166,7 +166,7 @@ namespace CrossLite.QueryBuilder
                 if (buildCommand && field.Value.Value != null && field.Value.Value != DBNull.Value && !(field.Value.Value is SqlLiteral))
                 {
                     // Create param for value
-                    SQLiteParameter param = Context.CreateParam();
+                    SQLiteParameter param = Context.CreateParameter();
                     param.ParameterName = "@P" + parameters.Count;
                     param.Value = field.Value.Value;
 
