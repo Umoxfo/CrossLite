@@ -4,13 +4,13 @@ namespace CrossLite.CodeFirst
 {
     /// <summary>
     /// Represents a Foreign Key constraint on a table. Only used
-    /// in CodeFirst table creation <see cref="SQLiteContext.CreateTable{TEntity}(bool)"/>
+    /// in CodeFirst table creation: <see cref="SQLiteContext.CreateTable{TEntity}(bool)"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Property)]
     public class ForeignKeyAttribute : Attribute
     {
         /// <summary>
-        /// Gets the parent Entity attribute names
+        /// Gets an array of child attribute names on a foreign key constraint
         /// </summary>
         public string[] Attributes { get; internal set; }
 

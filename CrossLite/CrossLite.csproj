@@ -65,7 +65,12 @@
     <Compile Include="EntityException.cs" />
     <Compile Include="Extensions\StringBuilderExtensions.cs" />
     <Compile Include="Extensions\TypeExtensions.cs" />
-    <Compile Include="CodeFirst\ForeignKeyInfo.cs" />
+    <Compile Include="CodeFirst\ForeignKeyConstraint.cs" />
+    <Compile Include="IQueryable\EntityQueryProvider.cs" />
+    <Compile Include="IQueryable\QueryResult.cs" />
+    <Compile Include="IQueryable\QueryTranslator.cs" />
+    <Compile Include="IQueryable\SQLiteQuery.cs" />
+    <Compile Include="IQueryable\TypeSystem.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="QueryBuilder\Enum.cs" />
     <Compile Include="QueryBuilder\ResultColumn.cs" />

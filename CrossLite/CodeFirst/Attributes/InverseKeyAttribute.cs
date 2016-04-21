@@ -7,8 +7,12 @@ namespace CrossLite.CodeFirst
     /// and Child's attribute names do not match. Only used in CodeFirst table 
     /// creation: <see cref="SQLiteContext.CreateTable{TEntity}(bool)"/>
     /// </summary>
+    [AttributeUsage(AttributeTargets.Property)]
     public class InverseKeyAttribute : Attribute
     {
+        /// <summary>
+        /// Gets an array of parent attribute names on a foreign key constraint
+        /// </summary>
         public string[] Attributes { get; protected set; }
 
         /// <summary>

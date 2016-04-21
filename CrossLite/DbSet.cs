@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using CrossLite.QueryBuilder;
 
@@ -41,7 +42,7 @@ namespace CrossLite
             // Get our Table Mapping
             Type objType = typeof(TEntity);
             TableMapping table = EntityCache.GetTableMap(objType);
-            string[] keys = table.CompositeKeys; // Linq query; Run enumerator once
+            string[] keys = table.PrimaryKeys.ToArray();
 
             // For fetching the RowID
             bool useRowId = false;
@@ -103,7 +104,7 @@ namespace CrossLite
             WhereStatement statement = new WhereStatement();
 
             // build the where statement, using primary keys
-            foreach (string keyName in table.CompositeKeys)
+            foreach (string keyName in table.PrimaryKeys)
             {
                 PropertyInfo info = table.Columns[keyName].Property;
                 statement.And(keyName, Comparison.Equals, info.GetValue(obj));
@@ -141,7 +142,7 @@ namespace CrossLite
             foreach (var attribute in table.Columns)
             {
                 // Check for keys
-                if (table.CompositeKeys.Contains(attribute.Key))
+                if (table.PrimaryKeys.Contains(attribute.Key))
                     continue;
 
                 object value = attribute.Value.Property.GetValue(obj);
@@ -149,7 +150,7 @@ namespace CrossLite
             }
 
             // build the where statement, using primary keys
-            foreach (string keyName in table.CompositeKeys)
+            foreach (string keyName in table.PrimaryKeys)
             {
                 PropertyInfo info = table.Columns[keyName].Property;
                 builder.Where(keyName, Comparison.Equals, info.GetValue(obj));
@@ -184,23 +185,33 @@ namespace CrossLite
             // Get our Table Mapping
             Type objType = typeof(TEntity);
             TableMapping table = EntityCache.GetTableMap(objType);
-            WhereStatement stmt = new WhereStatement();
+            WhereStatement where = new WhereStatement();
 
             // build the where statement, using primary keys
-            foreach (string keyName in table.CompositeKeys)
+            foreach (string keyName in table.PrimaryKeys)
             {
                 PropertyInfo info = table.Columns[keyName].Property;
                 object val = info.GetValue(obj);
 
                 // Add value to where statement
-                stmt.And(keyName, Comparison.Equals, val);
+                where.And(keyName, Comparison.Equals, val);
             }
 
+            return Contains(table.TableName, where);
+        }
+
+        internal bool Contains(string tableName, Expression<Func<TEntity, bool>> expression)
+        {
+            return false;
+        }
+
+        internal bool Contains(string tableName, WhereStatement where)
+        {
             // Build the SQL query
             List<SQLiteParameter> parameters;
             string sql = String.Format("SELECT EXISTS(SELECT 1 FROM {0} WHERE {1} LIMIT 1);",
-                SQLiteContext.Escape(table.TableName),
-                stmt.BuildStatement(Context, out parameters)
+                SQLiteContext.Escape(tableName),
+                where.BuildStatement(Context, out parameters)
             );
 
             // Execute the command

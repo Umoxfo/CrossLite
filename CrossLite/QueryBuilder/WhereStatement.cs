@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Linq.Expressions;
 using System.Text;
 
 namespace CrossLite.QueryBuilder
@@ -94,6 +95,11 @@ namespace CrossLite.QueryBuilder
 
             // Add expression
             CurrentClause.Add(fieldName, @operator, value);
+            return this;
+        }
+
+        public WhereStatement Translate<TEntity>(Expression<Func<TEntity, bool>> expression)
+        {
             return this;
         }
 

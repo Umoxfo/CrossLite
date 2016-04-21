@@ -8,7 +8,7 @@ using CrossLite.CodeFirst;
 namespace CrossLite
 {
     /// <summary>
-    /// Represents an Attribute => Entity mapping of a database table
+    /// Represents an Attribute to Entity mapping of a database table
     /// </summary>
     public class TableMapping
     {
@@ -30,21 +30,6 @@ namespace CrossLite
         public bool WithoutRowID { get; protected set; } = false;
 
         /// <summary>
-        /// Gets a collection of Column to Property mappings
-        /// </summary>
-        public IReadOnlyDictionary<string, AttributeInfo> Columns { get; protected set; }
-
-        /// <summary>
-        /// Gets a collection of Composite Foreign keys on this table
-        /// </summary>
-        public IReadOnlyCollection<ForeignKeyInfo> ForeignKeys { get; protected set; }
-
-        /// <summary>
-        /// Gets a collection of Unique constraints on this table
-        /// </summary>
-        public IReadOnlyCollection<CompositeUniqueAttribute> UniqueConstraints { get; protected set; }
-
-        /// <summary>
         /// Indicates whether this Table has a single Primary Key
         /// </summary>
         public bool HasPrimaryKey { get; protected set; }
@@ -52,23 +37,35 @@ namespace CrossLite
         /// <summary>
         /// Gets a collection of keys on this table
         /// </summary>
-        public string[] CompositeKeys
-        {
-            get
-            {
-                return (from x in Columns where x.Value.PrimaryKey select x.Key).ToArray();
-            }
-        }
+        public IReadOnlyCollection<string> PrimaryKeys { get; protected set; }
 
         /// <summary>
-        /// 
+        /// Gets a collection of Column to Property mappings
         /// </summary>
-        internal Dictionary<Type, PropertyInfo> Parents { get; set; }
+        public IReadOnlyDictionary<string, AttributeInfo> Columns { get; protected set; }
 
         /// <summary>
-        /// 
+        /// Gets a collection of Foreign keys on this table, where this Entity is a
+        /// child (Many) to a parent Entity (One)
         /// </summary>
-        internal Dictionary<Type, PropertyInfo> Childs { get; set; }
+        public IReadOnlyCollection<ForeignKeyConstraint> ForeignKeys { get; protected set; }
+
+        /// <summary>
+        /// Gets a collection of Unique constraints on this table
+        /// </summary>
+        public IReadOnlyCollection<CompositeUniqueAttribute> UniqueConstraints { get; protected set; }
+
+        /// <summary>
+        /// Contains a list of Foreign key relationships, where this Entity is a
+        /// child (Many) to a parent Entity (One)
+        /// </summary>
+        internal Dictionary<Type, PropertyInfo> ParentRelationships { get; set; }
+
+        /// <summary>
+        /// Contains a list of Foreign key relationships, where this Entity is a
+        /// parent Entity (one) to many child Entities (many)
+        /// </summary>
+        internal Dictionary<Type, PropertyInfo> ChildRelationships { get; set; }
 
         /// <summary>
         /// Gets the name of the Auto Increment attribute, or NULL
@@ -90,8 +87,8 @@ namespace CrossLite
             // Set critical properties
             this.EntityType = entityType;
             this.TableName = entityType.Name;
-            this.Parents = new Dictionary<Type, PropertyInfo>();
-            this.Childs = new Dictionary<Type, PropertyInfo>();
+            this.ParentRelationships = new Dictionary<Type, PropertyInfo>();
+            this.ChildRelationships = new Dictionary<Type, PropertyInfo>();
 
             // Get table related instructions
             var tableAttr = (TableAttribute)entityType.GetCustomAttribute(typeof(TableAttribute));
@@ -103,6 +100,7 @@ namespace CrossLite
 
             // Temporary variables
             Dictionary<string, AttributeInfo> cols = new Dictionary<string, AttributeInfo>();
+            List<AttributeInfo> primaryKeys = new List<AttributeInfo>();
             bool hasAutoIncrement = false;
 
             // Get a list of properties from the Entity that represents an Attribute
@@ -138,6 +136,7 @@ namespace CrossLite
                         else if (attrType == typeof(PrimaryKeyAttribute))
                         {
                             info.PrimaryKey = true;
+                            primaryKeys.Add(info);
                         }
                         else if (attrType == typeof(DefaultAttribute))
                         {
@@ -171,17 +170,23 @@ namespace CrossLite
                     cols[info.Name] = info;
                 }
                 // Check for foreign key collections
-                else if (property.GetGetMethod().IsVirtual && type.IsGenericType)
+                else if (type.IsGenericType && property.GetGetMethod().IsVirtual)
                 {
                     Type def = type.GetGenericTypeDefinition();
                     type = type.GenericTypeArguments[0];
                     if (def == typeof(IEnumerable<>))
                     {
-                        Childs.Add(type, property);
+                        // IEnumerable means this is a parent entity
+                        ChildRelationships.Add(type, property);
                     }
                     else if (def == typeof(ForeignKey<>))
                     {
-                        Parents.Add(type, property);
+                        // If no foreign key attribute is defined, tell the dev
+                        if (!Attribute.IsDefined(property, typeof(ForeignKeyAttribute)))
+                            throw new EntityException("Properties of type ForeignKey<T> must contain the ForeignKey attribute");
+
+                        // ForeignKey<T> means this is a child entity
+                        ParentRelationships.Add(type, property);
                     }
                 }
             }
@@ -191,37 +196,37 @@ namespace CrossLite
 
             // Set internals
             Columns = new ReadOnlyDictionary<string, AttributeInfo>(cols);
-            HasPrimaryKey = this.CompositeKeys.Length == 1;
+            PrimaryKeys = primaryKeys.Select(x => x.Name).ToList().AsReadOnly();
+            HasPrimaryKey = primaryKeys.Count == 1;
+            List<ForeignKeyConstraint> foreignKeys = new List<ForeignKeyConstraint>();
 
             // ------------------------------------
-            // Always perform this last!
+            // Always check foreign keys after setting the Columns property!
+            // 
+            // We must always check foreign keys after loading all of the entities properties,
+            // because the properties may not be ordered correctly in the class itself. This
+            // would cause errors when checking for column matches between the parent
+            // and child entities when creating the ForeignKeyInfo class.
             // ------------------------------------
-
-            // Get a list of properties that are foreign keys
-            List<ForeignKeyInfo> fks = new List<ForeignKeyInfo>();
-            props = entityType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Where(prop => Attribute.IsDefined(prop, typeof(ForeignKeyAttribute))).ToArray();
 
             // Loop through each attribute, and generate an attribute map
-            foreach (PropertyInfo property in props)
+            foreach (PropertyInfo property in ParentRelationships.Values)
             {
                 var fkey = (ForeignKeyAttribute)property.GetCustomAttribute(typeof(ForeignKeyAttribute));
                 var inverse = (InverseKeyAttribute)property.GetCustomAttribute(typeof(InverseKeyAttribute));
 
-                if (property.PropertyType.BaseType != typeof(ForeignKey<>).BaseType)
-                    continue;
-
                 // Create ForeignKeyInfo
-                ForeignKeyInfo info = new ForeignKeyInfo(this, 
+                ForeignKeyConstraint info = new ForeignKeyConstraint(this, 
                     property.PropertyType.GetGenericArguments()[0], 
                     fkey, 
                     inverse ?? new InverseKeyAttribute(fkey.Attributes)
                 );
 
-                fks.Add(info);
+                foreignKeys.Add(info);
             }
 
-            ForeignKeys = fks.AsReadOnly();
+            // Finally, set our class ForeignKey property
+            ForeignKeys = foreignKeys.AsReadOnly();
         }
 
         /// <summary>
@@ -238,24 +243,30 @@ namespace CrossLite
         }
 
         /// <summary>
-        /// 
+        /// Populates the foreign key related properties on an Entity
         /// </summary>
-        /// <param name="entityType"></param>
-        /// <param name="entity"></param>
-        /// <param name="context"></param>
+        /// <param name="entityType">
+        /// Not really needed, but since this information is available when this 
+        /// method is usually called, might as well save CPU cycles.
+        /// </param>
+        /// <param name="entity">The entity we are populating attributes on</param>
+        /// <param name="context">An open SQLite connection where this Entity can be stored/fetched from</param>
         internal void CreateRelationships(Type entityType, object entity, SQLiteContext context)
         {
+            // We must have a type match
             if (entityType != EntityType)
                 throw new ArgumentException("Invalid Entity type passed", "entityType");
 
-            foreach (var parent in this.Parents)
+            // Fill ForeignKey<T> properties
+            foreach (var parent in this.ParentRelationships)
             {
                 Type fkT = typeof(ForeignKey<>).MakeGenericType(parent.Key);
                 var fk = Activator.CreateInstance(fkT, entity, context);
                 parent.Value.SetValue(entity, fk);
             }
 
-            foreach (var parent in this.Childs)
+            // Fill IEnumerable<T> properties
+            foreach (var parent in this.ChildRelationships)
             {
                 Type ckT = typeof(ChildDbSet<,>).MakeGenericType(entityType, parent.Key);
                 var ck = Activator.CreateInstance(ckT, entity, context);

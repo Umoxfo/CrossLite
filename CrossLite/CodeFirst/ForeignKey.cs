@@ -35,7 +35,7 @@ namespace CrossLite.CodeFirst
 
             // Grab mapping and foreign info from child entity
             TableMapping childTable = EntityCache.GetTableMap(childType);
-            ForeignKeyInfo fkinfo = childTable.ForeignKeys.Where(x => x.ParentEntityType == parentType).FirstOrDefault();
+            ForeignKeyConstraint fkinfo = childTable.ForeignKeys.Where(x => x.ParentEntityType == parentType).FirstOrDefault();
 
             // Make sure the user set their code up correctly
             if (fkinfo == null)

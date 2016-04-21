@@ -8,6 +8,7 @@ namespace CrossLite.CodeFirst
     /// The COLLATE clause of the column definition is used to define 
     /// alternative collating functions for a column.
     /// </summary>
+    [AttributeUsage(AttributeTargets.Property)]
     public class CollationAttribute : Attribute
     {
         public Collation Collation { get; protected set; }

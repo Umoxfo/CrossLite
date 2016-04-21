@@ -93,7 +93,7 @@ namespace CrossLite.CodeFirst
             // -----------------------------------------
             // Composite Keys
             // -----------------------------------------
-            string[] keys = table.CompositeKeys; // Linq query; Perform once here
+            string[] keys = table.PrimaryKeys.ToArray();
             if (!table.HasPrimaryKey && keys.Length > 0)
             {
                 sql.Append($"\tPRIMARY KEY(");
@@ -114,7 +114,7 @@ namespace CrossLite.CodeFirst
             // -----------------------------------------
             // Foreign Keys
             // -----------------------------------------
-            foreach (ForeignKeyInfo info in table.ForeignKeys)
+            foreach (ForeignKeyConstraint info in table.ForeignKeys)
             {
                 // Primary table attributes
                 ForeignKeyAttribute fk = info.ForeignKey;

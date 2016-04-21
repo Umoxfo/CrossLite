@@ -4,3 +4,4 @@ CrossLite/obj/*
 CrossLiteTester/bin/*
 CrossLiteTester/obj/*
 *.suo
+/CrossLite/IQueryable
