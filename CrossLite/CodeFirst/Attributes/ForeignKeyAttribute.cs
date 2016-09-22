@@ -36,24 +36,6 @@ namespace CrossLite.CodeFirst
         }
 
         /// <summary>
-        /// Creates a foreign key constraint between the 2 attached Entity
-        /// attributes, and the specifed parent Entity attributes
-        /// </summary>
-        public ForeignKeyAttribute(string attribute1, string attribute2)
-        {
-            this.Attributes = new string[] { attribute1, attribute2 };
-        }
-
-        /// <summary>
-        /// Creates a foreign key constraint between the 3 attached Entity
-        /// attributes, and the specifed parent Entity attributes
-        /// </summary>
-        public ForeignKeyAttribute(string attribute1, string attribute2, string attribute3)
-        {
-            this.Attributes = new string[] { attribute1, attribute2 };
-        }
-
-        /// <summary>
         /// Creates a foreign key constraint between the attached Entity
         /// attributes, and the specifed parent Entity attributes
         /// </summary>

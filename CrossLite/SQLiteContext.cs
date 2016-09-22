@@ -78,7 +78,8 @@ namespace CrossLite
         /// <param name="builder">The Connection string to connect to this database</param>
         public SQLiteContext(SQLiteConnectionStringBuilder builder)
         {
-            Connection = new SQLiteConnection(builder.ToString());
+            ConnectionString = builder.ToString();
+            Connection = new SQLiteConnection(ConnectionString);
         }
 
         /// <summary>
@@ -482,7 +483,7 @@ namespace CrossLite
         /// Begins a new database transaction
         /// </summary>
         /// <returns></returns>
-        public DbTransaction BeginTransaction() => Connection.BeginTransaction();
+        public SQLiteTransaction BeginTransaction() => Connection.BeginTransaction();
 
         /// <summary>
         /// Converts attributes from an <see cref="SQLiteDataReader"/> to an Entity
@@ -528,13 +529,18 @@ namespace CrossLite
                         property.SetValue(entity, reader.GetChar(i));
                         break;
                     default:
-                        property.SetValue(entity, reader.GetValue(i));
+                        // Correct DBNull values
+                        object val = reader.GetValue(i);
+                        if (val is DBNull)
+                            val = String.Empty;
+
+                        property.SetValue(entity, val);
                         break;
                 }
             }
 
             // Foreign keys!
-            table.CreateRelationships(typeof(TEntity), entity, this);
+            table.CreateRelationships(entity, this);
 
             // Add object
             return entity;

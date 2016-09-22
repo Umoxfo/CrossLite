@@ -29,7 +29,7 @@ namespace CrossLite
         /// <summary>
         /// Gets the default value for this attribute
         /// </summary>
-        public object DefaultValue { get; internal set; } = null;
+        public DefaultAttribute DefaultValue { get; internal set; } = null;
 
         /// <summary>
         /// Indicates whether this Attribute Requires a value and

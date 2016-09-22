@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Data.SQLite;
 using System.Linq;
+using System.Reflection;
 using CrossLite.QueryBuilder;
 
 namespace CrossLite.CodeFirst
@@ -16,46 +17,65 @@ namespace CrossLite.CodeFirst
 
         protected string ConnectionString { get; set; }
 
-        protected WhereStatement Statement { get; set; } = new WhereStatement();
+        protected ForeignKeyConstraint Constraint { get; set; }
+
+        protected TableMapping ChildTable { get; set; }
+
+        protected WhereStatement Statement { get; set; } 
 
         /// <summary>
         /// Creates a new Instance of <see cref="ForeignKey{TEntity}"/>
         /// </summary>
-        /// <param name="entity">The Child Entity object</param>
-        /// <param name="context">An open SQLiteContext</param>
-        public ForeignKey(object entity, SQLiteContext context)
+        /// <param name="childEntity">The Child Entity object WITH the Foreign Key restraint</param>
+        /// <param name="childPropertry">The property from the child property, that hosts the foreign key object</param>
+        /// <param name="context">An open SQLiteContext that hosts these entities</param>
+        public ForeignKey(object childEntity, PropertyInfo childPropertry, SQLiteContext context)
         {
             // Set properties
-            ChildEntity = entity;
+            ChildEntity = childEntity;
             ConnectionString = context.ConnectionString;
 
             // Define entity types
-            Type childType = entity.GetType();
+            Type childType = ChildEntity.GetType();
             Type parentType = typeof(TEntity);
 
             // Grab mapping and foreign info from child entity
-            TableMapping childTable = EntityCache.GetTableMap(childType);
-            ForeignKeyConstraint fkinfo = childTable.ForeignKeys.Where(x => x.ParentEntityType == parentType).FirstOrDefault();
+            ChildTable = EntityCache.GetTableMap(childType);
+            Constraint = ChildTable.ForeignKeys.Where(x => x.ChildPropertyName == childPropertry.Name).FirstOrDefault();
 
             // Make sure the user set their code up correctly
-            if (fkinfo == null)
+            if (Constraint == null)
             {
                 throw new EntityException(
                     $"Entity \"{childType.Name}\" does not contain a ForeignKey attribute for {parentType.Name}"
                 );
             }
 
+            // Refresh where statment
+            Refresh();
+        }
+
+        /// <summary>
+        /// Refreshes the internal SQL statement to reflect any property value changes
+        /// within the child entity. This method should be called whenever a foreign key
+        /// value changes.
+        /// </summary>
+        public void Refresh()
+        {
+            // Create new WHERE Statement
+            Statement = new WhereStatement();
+
             // Fill up the WhereStatement with joining keys specific to this Child
             // entities instance
-            for (int i = 0; i < fkinfo.ForeignKey.Attributes.Length; i++)
+            for (int i = 0; i < Constraint.ForeignKey.Attributes.Length; i++)
             {
                 // Grab attribute names
-                string childColName = fkinfo.ForeignKey.Attributes[i];
-                string parentColName = fkinfo.InverseKey.Attributes[i];
+                string childColName = Constraint.ForeignKey.Attributes[i];
+                string parentColName = Constraint.InverseKey.Attributes[i];
 
                 // Get the value of the child attribute on this Entity instance
-                AttributeInfo info = childTable.GetAttribute(childColName);
-                object val = info.Property.GetValue(entity);
+                AttributeInfo info = ChildTable.GetAttribute(childColName);
+                object val = info.Property.GetValue(ChildEntity);
 
                 // Add the key => value to the where statement
                 Statement.And(parentColName, Comparison.Equals, val);

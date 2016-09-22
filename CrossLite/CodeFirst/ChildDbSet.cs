@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Linq;
@@ -23,14 +22,9 @@ namespace CrossLite.CodeFirst
         protected string ConnectionString { get; set; }
 
         /// <summary>
-        /// The Parent Entity that the Child Entities are bound to
+        /// The Parent Entity instance that the Child Entities are bound to
         /// </summary>
         protected TParentEntity Entity { get; set; }
-
-        /// <summary>
-        /// The cached SELECT statement, if it has been run once already.
-        /// </summary>
-        protected SelectQueryBuilder SelectQuery { get; set; }
 
         /// <summary>
         /// Creates a new instance of <see cref="ChildDbSet{TParentEntity, TChildEntity}"/>
@@ -43,65 +37,51 @@ namespace CrossLite.CodeFirst
             ConnectionString = context.ConnectionString;
         }
 
+        /// <summary>
+        /// Lazy loads the child entities of a foreign key constraint
+        /// </summary>
         public IEnumerator<TChildEntity> GetEnumerator()
         {
-            // Get our Table Mapping
-            Type objType = typeof(TChildEntity);
-            TableMapping table = EntityCache.GetTableMap(objType);
+            // Grab table mappings
+            TableMapping parentTable = EntityCache.GetTableMap(typeof(TParentEntity));
+            TableMapping childTable = EntityCache.GetTableMap(typeof(TChildEntity));
 
             // Create the SQL Command
             using (SQLiteContext context = new SQLiteContext(ConnectionString))
             {
                 // Open the connection
                 context.Connect();
+                
+                // Begin a new Select Query
+                SelectQueryBuilder query = new SelectQueryBuilder(context);
+                query.From(childTable.TableName).Select(childTable.Columns.Keys);
 
-                // --------------------------------------
-                // We can cache this query since Keys will never change
-                // --------------------------------------
-                if (SelectQuery == null)
+                // Grab the foreign key constraints
+                var fkinfos = childTable.ForeignKeys.Where(x => x.ParentEntityType == parentTable.EntityType);
+                foreach (ForeignKeyConstraint fkinfo in fkinfos)
                 {
-                    // Begin a new Select Query
-                    SelectQuery = new SelectQueryBuilder(context);
-                    SelectQuery.From(table.TableName).Select(table.Columns.Keys);
-
-                    // Define types
-                    Type childType = typeof(TChildEntity);
-                    Type parentType = typeof(TParentEntity);
-
-                    // Grab mapping from parent
-                    TableMapping childTable = EntityCache.GetTableMap(childType);
-                    TableMapping parentTable = EntityCache.GetTableMap(parentType);
-
-                    // Grab the foreign key info
-                    ForeignKeyConstraint fkinfo = childTable.ForeignKeys
-                        .Where(x => x.ParentEntityType == parentType)
-                        .FirstOrDefault();
-
                     // Append each key => value to the query
                     for (int i = 0; i < fkinfo.ForeignKey.Attributes.Length; i++)
                     {
                         string attrName = fkinfo.ForeignKey.Attributes[i];
                         string parentColName = fkinfo.InverseKey.Attributes[i];
 
-                        AttributeInfo info = parentTable.GetAttribute(parentColName);
-                        object val = info.Property.GetValue(Entity);
-
                         // Add column expression
-                        SelectQuery.Where(attrName, Comparison.Equals, val);
+                        AttributeInfo attribute = parentTable.GetAttribute(parentColName);
+                        query.Where(attrName, Comparison.Equals, attribute.Property.GetValue(Entity));
                     }
+
+                    // Create a new clause, to seperate by an OR
+                    query.WhereStatement.CreateNewClause();
                 }
 
                 // Create command
-                using (SQLiteCommand command = SelectQuery.BuildCommand())
+                using (SQLiteCommand command = query.BuildCommand())
                 using (SQLiteDataReader reader = command.ExecuteReader())
                 {
-                    // If we have rows, add them to the list
-                    if (reader.HasRows)
-                    {
-                        // Return each row
-                        while (reader.Read())
-                            yield return context.ConvertToEntity<TChildEntity>(table, reader);
-                    }
+                    // If we have rows, return each row
+                    while (reader.Read())
+                        yield return context.ConvertToEntity<TChildEntity>(childTable, reader);
 
                     // Cleanup
                     reader.Close();
@@ -109,6 +89,9 @@ namespace CrossLite.CodeFirst
             }
         }
 
+        /// <summary>
+        /// Lazy loads the child entities of a foreign key constraint
+        /// </summary>
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();

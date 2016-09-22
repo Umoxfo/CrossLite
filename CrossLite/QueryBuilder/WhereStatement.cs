@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 
@@ -22,7 +23,8 @@ namespace CrossLite.QueryBuilder
         public List<WhereClause> Clauses { get; protected set; }
 
         /// <summary>
-        /// Gets or Sets the Logic Operator to use inside Clauses
+        /// Gets or Sets the Logic Operator to use inside Clauses.
+        /// Default is AND
         /// </summary>
         public LogicOperator InnerClauseOperator { get; set; } = LogicOperator.And;
 
@@ -34,7 +36,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Indicates whether this WhereStatement has any clauses, or if its empty.
         /// </summary>
-        public bool HasClause { get { return CurrentClause.Expressions.Count > 0; } }
+        public bool HasClause => Clauses.Any(x => x.Expressions.Count > 0);
 
         /// <summary>
         /// Creates a new instance of <see cref="WhereStatement"/>
@@ -48,11 +50,14 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Ends the current active clause, and creates a new one.
         /// </summary>
-        protected void CreateNewClause()
+        public void CreateNewClause()
         {
             // Create new Group
-            CurrentClause = new WhereClause();
-            Clauses.Add(CurrentClause);
+            if (CurrentClause.Expressions.Count > 0)
+            {
+                CurrentClause = new WhereClause();
+                Clauses.Add(CurrentClause);
+            }
         }
 
         /// <summary>
@@ -98,11 +103,6 @@ namespace CrossLite.QueryBuilder
             return this;
         }
 
-        public WhereStatement Translate<TEntity>(Expression<Func<TEntity, bool>> expression)
-        {
-            return this;
-        }
-
         /// <summary>
         /// Builds the current set of Clauses and returns the output as a string.
         /// </summary>
@@ -126,6 +126,9 @@ namespace CrossLite.QueryBuilder
             StringBuilder builder = new StringBuilder();
             int paramsCounter = parameters.Count;
             int counter = 0;
+
+            // Ignore empty expressions
+            Clauses.RemoveAll(x => x.Expressions.Count == 0);
 
             // Loop through each Where clause (wrapped in parenthesis)
             foreach (WhereClause clause in Clauses)
@@ -165,11 +168,15 @@ namespace CrossLite.QueryBuilder
 
                             // Add statement
                             builder.Append(
-                                CreateComparisonClause(expression.FieldName, expression.ComparisonOperator, (object)new object[2]
-                                {
-                                    (object) new SqlLiteral(param1.ParameterName),
-                                    (object) new SqlLiteral(param2.ParameterName)
-                                })
+                                CreateComparisonClause(
+                                    expression.FieldName, 
+                                    expression.ComparisonOperator, 
+                                    (object)new object[2]
+                                    {
+                                        (object) new SqlLiteral(param1.ParameterName),
+                                        (object) new SqlLiteral(param2.ParameterName)
+                                    }
+                                )
                              );
                         }
 

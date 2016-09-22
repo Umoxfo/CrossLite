@@ -74,12 +74,24 @@ namespace CrossLite.CodeFirst
                 // Default value
                 if (info.DefaultValue != null)
                 {
+                    sql.Append($" DEFAULT ");
+
                     // Do we need to quote this?
-                    SQLiteDataType type = GetSQLiteType(info.DefaultValue.GetType());
-                    if (type == SQLiteDataType.INTEGER || type == SQLiteDataType.REAL)
-                        sql.Append($" DEFAULT {info.DefaultValue}");
+                    SQLiteDataType type = info.DefaultValue.SQLiteDataType;
+                    if (type == SQLiteDataType.INTEGER && info.DefaultValue.Value is Boolean)
+                    {
+                        // Convert bools to integers
+                        int val = ((bool)info.DefaultValue.Value) ? 1 : 0;
+                        sql.Append($"{val}");
+                    }
+                    else if (info.DefaultValue.Quote)
+                    {
+                        sql.Append($"\"{info.DefaultValue.Value}\"");
+                    }
                     else
-                        sql.Append($" DEFAULT \"{info.DefaultValue}\"");
+                    {
+                        sql.Append($"{info.DefaultValue.Value}");
+                    }
                 }
 
                 // Add last comma

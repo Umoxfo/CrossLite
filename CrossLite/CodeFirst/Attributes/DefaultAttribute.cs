@@ -18,9 +18,21 @@ namespace CrossLite.CodeFirst
         /// </summary>
         public object Value { get; set; }
 
+        /// <summary>
+        /// Gets the <see cref="SQLiteDataType"/> of this default value
+        /// </summary>
+        public SQLiteDataType SQLiteDataType { get; protected set; }
+
+        /// <summary>
+        /// Gets or Sets whether to Quote this default value in SQL code First statements
+        /// </summary>
+        public bool Quote { get; set; } = true;
+
         public DefaultAttribute(object Value)
         {
             this.Value = Value;
+            this.SQLiteDataType = SQLiteContext.GetSQLiteType(Value.GetType());
+            this.Quote = (SQLiteDataType != SQLiteDataType.INTEGER && SQLiteDataType != SQLiteDataType.REAL);
         }
     }
 }

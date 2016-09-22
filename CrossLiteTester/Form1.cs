@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using System;
+using System.Data;
 using System.Data.SQLite;
 using System.Diagnostics;
 using System.IO;
@@ -60,10 +61,18 @@ namespace CrossLiteTester
                     MessageBox.Show(entity.Name + " does not exist!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
                 // More dummy data
-                entity = new Account() { Name = "Sally" };
-                db.Users.Add(entity);
-                entity = db.Users.LastOrDefault();
+                try
+                {
+                    entity = new Account() { Name = "Sally" };
+                    db.Users.Add(entity);
+                    var results = db.Users.Select(x => x).Where(x => x.Id == 1).ToString();
+                }
+                catch (Exception e)
+                {
+                    var exp = e;
+                }
 
+                /*
                 // Test an update
                 entity.Name = "Joey";
                 db.Users.Update(entity);
@@ -76,6 +85,7 @@ namespace CrossLiteTester
                 trans.Commit();
                 entity = (from x in db.Users select x).First();
                 MessageBox.Show(entity.Name + " :: " + timer.ElapsedMilliseconds);
+                */
             }
         }
     }

@@ -59,13 +59,16 @@ namespace CrossLite
         /// Contains a list of Foreign key relationships, where this Entity is a
         /// child (Many) to a parent Entity (One)
         /// </summary>
-        internal Dictionary<Type, PropertyInfo> ParentRelationships { get; set; }
+        /// <remarks>
+        /// Contains both Lazy loaded properties and Eager loaded properties.
+        /// </remarks>
+        internal Dictionary<PropertyInfo, Type> ParentRelationships { get; set; }
 
         /// <summary>
         /// Contains a list of Foreign key relationships, where this Entity is a
         /// parent Entity (one) to many child Entities (many)
         /// </summary>
-        internal Dictionary<Type, PropertyInfo> ChildRelationships { get; set; }
+        internal Dictionary<PropertyInfo, Type> ChildRelationships { get; set; }
 
         /// <summary>
         /// Gets the name of the Auto Increment attribute, or NULL
@@ -87,14 +90,14 @@ namespace CrossLite
             // Set critical properties
             this.EntityType = entityType;
             this.TableName = entityType.Name;
-            this.ParentRelationships = new Dictionary<Type, PropertyInfo>();
-            this.ChildRelationships = new Dictionary<Type, PropertyInfo>();
+            this.ParentRelationships = new Dictionary<PropertyInfo, Type>();
+            this.ChildRelationships = new Dictionary<PropertyInfo, Type>();
 
             // Get table related instructions
             var tableAttr = (TableAttribute)entityType.GetCustomAttribute(typeof(TableAttribute));
             if (tableAttr != null)
             {
-                this.TableName = tableAttr.Name;
+                this.TableName = tableAttr.Name ?? entityType.Name;
                 this.WithoutRowID = tableAttr.WithoutRowID;
             }
 
@@ -140,7 +143,7 @@ namespace CrossLite
                         }
                         else if (attrType == typeof(DefaultAttribute))
                         {
-                            info.DefaultValue = ((DefaultAttribute)attr).Value;
+                            info.DefaultValue = (DefaultAttribute)attr;
                         }
                         else if (attrType == typeof(RequiredAttribute))
                         {
@@ -170,23 +173,32 @@ namespace CrossLite
                     cols[info.Name] = info;
                 }
                 // Check for foreign key collections
-                else if (type.IsGenericType && property.GetGetMethod().IsVirtual)
+                else if (property.GetGetMethod(true).IsVirtual)
                 {
-                    Type def = type.GetGenericTypeDefinition();
-                    type = type.GenericTypeArguments[0];
-                    if (def == typeof(IEnumerable<>))
+                    // All generics are Lazy-Loaded
+                    if (type.IsGenericType)
                     {
-                        // IEnumerable means this is a parent entity
-                        ChildRelationships.Add(type, property);
-                    }
-                    else if (def == typeof(ForeignKey<>))
-                    {
-                        // If no foreign key attribute is defined, tell the dev
-                        if (!Attribute.IsDefined(property, typeof(ForeignKeyAttribute)))
-                            throw new EntityException("Properties of type ForeignKey<T> must contain the ForeignKey attribute");
+                        Type def = type.GetGenericTypeDefinition();
+                        type = type.GenericTypeArguments[0];
+                        if (def == typeof(IEnumerable<>))
+                        {
+                            // IEnumerable means this is a parent entity
+                            ChildRelationships.Add(property, type);
+                        }
+                        else if (def == typeof(ForeignKey<>))
+                        {
+                            // If no foreign key attribute is defined, tell the dev
+                            if (!Attribute.IsDefined(property, typeof(ForeignKeyAttribute)))
+                                throw new EntityException("Properties of type ForeignKey<T> must contain the ForeignKey attribute");
 
-                        // ForeignKey<T> means this is a child entity
-                        ParentRelationships.Add(type, property);
+                            // ForeignKey<T> means this is a child entity
+                            ParentRelationships.Add(property, type);
+                        }
+                    }
+                    else if (Attribute.IsDefined(property, typeof(ForeignKeyAttribute)))
+                    {
+                        // Eager Loaded Property!
+                        ParentRelationships.Add(property, type);
                     }
                 }
             }
@@ -210,18 +222,19 @@ namespace CrossLite
             // ------------------------------------
 
             // Loop through each attribute, and generate an attribute map
-            foreach (PropertyInfo property in ParentRelationships.Values)
+            foreach (PropertyInfo property in ParentRelationships.Keys)
             {
                 var fkey = (ForeignKeyAttribute)property.GetCustomAttribute(typeof(ForeignKeyAttribute));
                 var inverse = (InverseKeyAttribute)property.GetCustomAttribute(typeof(InverseKeyAttribute));
 
-                // Create ForeignKeyInfo
-                ForeignKeyConstraint info = new ForeignKeyConstraint(this, 
-                    property.PropertyType.GetGenericArguments()[0], 
-                    fkey, 
-                    inverse ?? new InverseKeyAttribute(fkey.Attributes)
-                );
+                // Grab type
+                Type type = (property.PropertyType.IsGenericType) 
+                    ? property.PropertyType.GetGenericArguments()[0] 
+                    : property.PropertyType;
 
+                // Create ForeignKeyInfo
+                InverseKeyAttribute inv = inverse ?? new InverseKeyAttribute(fkey.Attributes);
+                ForeignKeyConstraint info = new ForeignKeyConstraint(this, property.Name, type, fkey, inv);  
                 foreignKeys.Add(info);
             }
 
@@ -245,32 +258,27 @@ namespace CrossLite
         /// <summary>
         /// Populates the foreign key related properties on an Entity
         /// </summary>
-        /// <param name="entityType">
-        /// Not really needed, but since this information is available when this 
-        /// method is usually called, might as well save CPU cycles.
-        /// </param>
-        /// <param name="entity">The entity we are populating attributes on</param>
+        /// <param name="entity">The entity we are populating the attributes on</param>
         /// <param name="context">An open SQLite connection where this Entity can be stored/fetched from</param>
-        internal void CreateRelationships(Type entityType, object entity, SQLiteContext context)
+        internal void CreateRelationships(object entity, SQLiteContext context)
         {
-            // We must have a type match
-            if (entityType != EntityType)
-                throw new ArgumentException("Invalid Entity type passed", "entityType");
-
-            // Fill ForeignKey<T> properties
+            // Fill Child ForeignKey<T> properties (Contains Parent Entities)
             foreach (var parent in this.ParentRelationships)
             {
-                Type fkT = typeof(ForeignKey<>).MakeGenericType(parent.Key);
-                var fk = Activator.CreateInstance(fkT, entity, context);
-                parent.Value.SetValue(entity, fk);
+                Type fkT = typeof(ForeignKey<>).MakeGenericType(parent.Value);
+                dynamic fk = Activator.CreateInstance(fkT, entity, parent.Key, context);
+                if (parent.Key.PropertyType.IsGenericType)
+                    parent.Key.SetValue(entity, fk);
+                else
+                    parent.Key.SetValue(entity, fk.Fetch());
             }
 
-            // Fill IEnumerable<T> properties
-            foreach (var parent in this.ChildRelationships)
+            // Fill Parent Entity IEnumerable<T> properties (Contains Child Entities)
+            foreach (var child in this.ChildRelationships)
             {
-                Type ckT = typeof(ChildDbSet<,>).MakeGenericType(entityType, parent.Key);
+                Type ckT = typeof(ChildDbSet<,>).MakeGenericType(EntityType, child.Value);
                 var ck = Activator.CreateInstance(ckT, entity, context);
-                parent.Value.SetValue(entity, ck);
+                child.Key.SetValue(entity, ck);
             }
         }
     }

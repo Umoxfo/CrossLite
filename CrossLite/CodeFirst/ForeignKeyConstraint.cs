@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Reflection;
 
 namespace CrossLite.CodeFirst
 {
@@ -25,6 +26,11 @@ namespace CrossLite.CodeFirst
         public Type ChildEntityType { get; protected set; }
 
         /// <summary>
+        /// The property name that contains the ForeignKey<> object
+        /// </summary>
+        public string ChildPropertyName { get; protected set; }
+
+        /// <summary>
         /// Gets the Parent entities attributes that are referenced in this foreign key
         /// </summary>
         public InverseKeyAttribute InverseKey { get; protected set; }
@@ -41,12 +47,18 @@ namespace CrossLite.CodeFirst
         /// <param name="parentType"></param>
         /// <param name="foreignKey"></param>
         /// <param name="inverseKey"></param>
-        public ForeignKeyConstraint(TableMapping child, Type parentType, ForeignKeyAttribute foreignKey, InverseKeyAttribute inverseKey)
+        public ForeignKeyConstraint(
+            TableMapping child, 
+            string childPropertyName, 
+            Type parentType, 
+            ForeignKeyAttribute foreignKey, 
+            InverseKeyAttribute inverseKey)
         {
             this.ForeignKey = foreignKey;
             this.InverseKey = inverseKey;
             this.ParentEntityType = parentType;
             this.ChildEntityType = child.EntityType;
+            this.ChildPropertyName = childPropertyName;
 
             // Ensure the parent and child have the specified properties
             TableMapping parent = EntityCache.GetTableMap(parentType);
