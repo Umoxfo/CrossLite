@@ -132,6 +132,63 @@ namespace CrossLite
         }
 
         /// <summary>
+        /// Inserts a new Entity into the database
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <returns>The number of rows affected by this operation</returns>
+        public void AddRange(params TEntity[] entities)
+        {
+            // For fetching the RowID
+            bool useRowId = false;
+            AttributeInfo pk = null;
+
+            // Generate the SQL
+            InsertQueryBuilder builder = new InsertQueryBuilder(EntityTable.TableName, Context);
+            foreach (TEntity obj in entities)
+            {
+                foreach (var attribute in EntityTable.Columns)
+                {
+                    // Grab value
+                    PropertyInfo info = attribute.Value.Property;
+
+                    // Check for singular primary keys
+                    if (EntityTable.PrimaryKeys.Contains(attribute.Key))
+                    {
+                        // Skip single primary keys that are Integers and do not have a value, 
+                        // This will cause the key to perform an Auto Increment
+                        if (attribute.Value.AutoIncrement || (EntityTable.HasPrimaryKey && info.PropertyType.IsNumericType()))
+                        {
+                            useRowId = true;
+                            pk = attribute.Value;
+                            continue;
+                        }
+                    }
+
+                    // Add attribute to the field list
+                    builder.SetField(attribute.Key, info.GetValue(obj));
+                }
+
+                // Execute the SQL Command
+                int result = builder.Execute();
+
+                // If the insert was successful, lets build our Entity relationships
+                if (result > 0)
+                {
+                    // If we have a Primary key that is determined database side,
+                    // than we can update the current object's key value here
+                    if (useRowId)
+                    {
+                        long rowId = Context.Connection.LastInsertRowId;
+                        pk.Property.SetValue(obj, Convert.ChangeType(rowId, pk.Property.PropertyType));
+                    }
+
+                    // Build relationships after a fresh insert
+                    EntityTable.CreateRelationships(obj, Context);
+                }
+            }
+        }
+
+        /// <summary>
         /// Deletes an Entity from the database
         /// </summary>
         /// <param name="obj">The entity to remove from the database</param>
