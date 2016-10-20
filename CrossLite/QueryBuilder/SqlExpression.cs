@@ -1,31 +1,63 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Data.SQLite;
+using System.Linq;
+using System.Text;
 
 namespace CrossLite.QueryBuilder
 {
+    /// <summary>
+    /// This object represents an SQL expression within a Where clause.
+    /// </summary>
     public class SqlExpression
     {
         /// <summary>
-        /// The column name for this clause
+        /// The column name for this expression
         /// </summary>
-        public string FieldName;
+        public string FieldName { get; protected set; }
 
         /// <summary>
         /// The Comaparison Operator to use
         /// </summary>
-        public Comparison ComparisonOperator;
+        public Comparison ComparisonOperator { get; protected set; }
 
         /// <summary>
-        /// The Value object
+        /// The Value of this expression
         /// </summary>
-        public object Value;
+        public object Value { get; protected set; }
 
-        public SqlExpression(string fieldName, Comparison @operator, object value)
+        /// <summary>
+        /// The <see cref="WhereStatement"/> that this expression is attached to
+        /// </summary>
+        protected WhereStatement Statement;
+
+        /// <summary>
+        /// Creates a new instance of <see cref="SqlExpression"/>
+        /// </summary>
+        /// <param name="fieldName">The field (column) name we are expressing</param>
+        /// <param name="operator">The comparison operator</param>
+        /// <param name="value">The value of this expression comparison.</param>
+        /// <param name="statement">The <see cref="WhereStatement"/> we are attached to. This
+        /// allows chaining methods easily.</param>
+        public SqlExpression(string fieldName, Comparison @operator, object value, WhereStatement statement)
         {
-            // Between values must be an array, with 2 values
+            // Set property values
+            this.FieldName = fieldName;
+            this.ComparisonOperator = @operator;
+            this.Value = value;
+            this.Statement = statement;
+            Type valueType = value.GetType();
+
+            // Do some checking
             if (@operator == Comparison.Between || @operator == Comparison.NotBetween)
             {
-                if (!(Value is Array) || ((Array)Value).Length != 2)
+                // Ensure that this is an array with 2 values
+                if (!valueType.IsArray || ((Array)Value).Length != 2)
                     throw new ArgumentException("The value of a Between clause must be an array, with 2 values.");
+            }
+            else if (valueType.IsArray && @operator != Comparison.In && @operator != Comparison.NotIn)
+            {
+                throw new ArgumentException($"The value type {nameof(@operator)} cannot compare array values.");
             }
 
             // Cant use NULL values for most operators
@@ -33,10 +65,501 @@ namespace CrossLite.QueryBuilder
             {
                 throw new Exception("Cannot use comparison operator " + ((object)@operator).ToString() + " for NULL values.");
             }
+        }
 
+        /// <summary>
+        /// Creates a new instance of <see cref="SqlExpression"/>
+        /// </summary>
+        /// <param name="fieldName">The field (column) name we are expressing</param>
+        /// <param name="statement">The <see cref="WhereStatement"/> we are attached to. This
+        /// allows chaining methods easily.</param>
+        public SqlExpression(string fieldName, WhereStatement statement)
+        {
             this.FieldName = fieldName;
-            this.ComparisonOperator = @operator;
-            this.Value = value;
+            this.Statement = statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with an Equal operator
+        /// </summary>
+        public WhereStatement Equals(string value)
+        {
+            ComparisonOperator = Comparison.Equals;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with an Equal operator
+        /// </summary>
+        public WhereStatement Equals<T>(T value) where T : struct
+        {
+            ComparisonOperator = Comparison.Equals;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with an Not equal operator
+        /// </summary>
+        public WhereStatement NotEqualTo(string value)
+        {
+            ComparisonOperator = Comparison.NotEqualTo;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with an Not equal operator
+        /// </summary>
+        public WhereStatement NotEqualTo<T>(T value) where T : struct
+        {
+            ComparisonOperator = Comparison.NotEqualTo;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with a Simple pattern matching operator
+        /// </summary>
+        public WhereStatement Like(string value)
+        {
+            ComparisonOperator = Comparison.Like;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with a Negation of simple pattern matching
+        /// </summary>
+        public WhereStatement NotLike(string value)
+        {
+            ComparisonOperator = Comparison.NotLike;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with a Greater than or equal operator
+        /// </summary>
+        public WhereStatement GreaterOrEquals<T>(T value) where T : struct
+        {
+            ComparisonOperator = Comparison.GreaterOrEquals;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with a Greater than operator
+        /// </summary>
+        public WhereStatement GreaterThan<T>(T value) where T : struct
+        {
+            ComparisonOperator = Comparison.GreaterThan;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with a Less than or equal operator
+        /// </summary>
+        public WhereStatement LessOrEquals<T>(T value) where T : struct
+        {
+            ComparisonOperator = Comparison.LessOrEquals;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression with a Less than operator
+        /// </summary>
+        public WhereStatement LessThan<T>(T value) where T : struct
+        {
+            ComparisonOperator = Comparison.LessThan;
+            Value = value;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is within a set of values
+        /// </summary>
+        public WhereStatement In(params string[] values)
+        {
+            ComparisonOperator = Comparison.In;
+            Value = values;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is within a set of values
+        /// </summary>
+        public WhereStatement In<T>(params T[] values) where T : struct
+        {
+            ComparisonOperator = Comparison.In;
+            Value = values;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is within a set of values
+        /// </summary>
+        public WhereStatement In(IEnumerable<string> values)
+        {
+            ComparisonOperator = Comparison.In;
+            Value = values;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is within a set of values
+        /// </summary>
+        public WhereStatement In<T>(IEnumerable<T> values) where T : struct
+        {
+            ComparisonOperator = Comparison.NotIn;
+            Value = values;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is not within a set of values
+        /// </summary>
+        public WhereStatement NotIn(params string[] values)
+        {
+            ComparisonOperator = Comparison.NotIn;
+            Value = values;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is not within a set of values
+        /// </summary>
+        public WhereStatement NotIn<T>(params T[] values) where T : struct
+        {
+            ComparisonOperator = Comparison.NotIn;
+            Value = values;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is not within a set of values
+        /// </summary>
+        public WhereStatement NotIn(IEnumerable<string> values)
+        {
+            ComparisonOperator = Comparison.NotIn;
+            Value = values;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is not within a set of values
+        /// </summary>
+        public WhereStatement NotIn<T>(IEnumerable<T> values) where T : struct
+        {
+            ComparisonOperator = Comparison.NotIn;
+            Value = values;
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is within a range of values
+        /// </summary>
+        public WhereStatement Between<T>(T value1, T value2) where T : struct
+        {
+            ComparisonOperator = Comparison.Between;
+            Value = new T[] { value1, value2 };
+            return Statement;
+        }
+
+        /// <summary>
+        /// Specifies the comparison of this expression is not within a range of values
+        /// </summary>
+        public WhereStatement NotBetween<T>(T value1, T value2) where T : struct
+        {
+            ComparisonOperator = Comparison.NotBetween;
+            Value = new T[] { value1, value2 };
+            return Statement;
+        }
+
+        /// <summary>
+        /// Generates and returns an SQL expression string, storing the values as SQL
+        /// parameters for SQL injection safty.
+        /// </summary>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
+        public string BuildExpression(List<SQLiteParameter> parameters)
+        {
+            // Check for literals
+            var isLiteral = (Value is SqlLiteral);
+
+            // If using a command, Convert values to Parameters for SQL safety
+            if (Value != null && Value != DBNull.Value && !isLiteral)
+            {
+                // --------------------------------------
+                // BETWEEN and NOT BETWEEN
+                //--------------------------------------
+                if (ComparisonOperator == Comparison.Between || ComparisonOperator == Comparison.NotBetween)
+                {
+                    // Add the between values to the command parameters
+                    Array between = ((Array)Value);
+
+                    SQLiteParameter param1 = new SQLiteParameter();
+                    param1.ParameterName = "@P" + parameters.Count;
+                    param1.Value = between.GetValue(0);
+
+                    SQLiteParameter param2 = new SQLiteParameter();
+                    param2.ParameterName = "@P" + (parameters.Count + 1);
+                    param2.Value = between.GetValue(1);
+
+                    // Add Params to command
+                    parameters.Add(param1);
+                    parameters.Add(param2);
+
+                    // Add statement
+                    return CreateExpressionString(FieldName, ComparisonOperator, param1, param2);
+                }
+                else if (ComparisonOperator == Comparison.In || ComparisonOperator == Comparison.NotIn)
+                {
+                    // Add the between values to the command parameters
+                    Array values = ((Array)Value);
+                    int offset = parameters.Count;
+
+                    foreach (var obj in values)
+                    {
+                        SQLiteParameter param = new SQLiteParameter();
+                        param.ParameterName = "@P" + parameters.Count;
+                        param.Value = obj;
+                        parameters.Add(param);
+                    }
+
+                    // Add statement
+                    return CreateExpressionString(FieldName, ComparisonOperator, parameters.Skip(offset).ToArray());
+                }
+                // --------------------------------------
+                // All Other Clauses
+                //--------------------------------------
+                else
+                {
+                    // Create param for value
+                    SQLiteParameter param = new SQLiteParameter();
+                    param.ParameterName = "@P" + parameters.Count;
+                    param.Value = Value;
+
+                    // Add Params to command
+                    parameters.Add(param);
+
+                    // Add statement
+                   return CreateExpressionString(FieldName, ComparisonOperator, param);
+                }
+            }
+            else if (isLiteral)
+            {
+                return CreateExpressionString(FieldName, ComparisonOperator, (SqlLiteral)Value);
+            }
+            else // Null and SqlLiteral values
+            {
+                return CreateExpressionString(FieldName, ComparisonOperator, Value);
+            }
+        }
+
+        /// <summary>
+        /// ToString override
+        /// </summary>
+        public override string ToString() => CreateExpressionString(FieldName, ComparisonOperator, Value);
+
+        /// <summary>
+        /// Creates an SQL expression with the value of the <see cref="SQLiteParameter.ParameterName"/>. 
+        /// </summary>
+        public static string CreateExpressionString(string fieldName, Comparison @operator, SQLiteParameter param)
+        {
+            // Correct Name and define variables
+            fieldName = SQLiteContext.Escape(fieldName);
+            switch (@operator)
+            {
+                case Comparison.Equals:
+                    return $"{fieldName} = {param.ParameterName}";
+                case Comparison.NotEqualTo:
+                    return $"{fieldName} != {param.ParameterName}";
+                case Comparison.Like:
+                    return $"{fieldName} LIKE {param.ParameterName}";
+                case Comparison.NotLike:
+                    return $"{fieldName} NOT LIKE {param.ParameterName}";
+                case Comparison.GreaterThan:
+                    return $"{fieldName} > {param.ParameterName}";
+                case Comparison.GreaterOrEquals:
+                    return $"{fieldName} >= {param.ParameterName}";
+                case Comparison.LessThan:
+                    return $"{fieldName} < {param.ParameterName}";
+                case Comparison.LessOrEquals:
+                    return $"{fieldName} <= {param.ParameterName}";
+                case Comparison.In:
+                    return $"{fieldName} IN ({param.ParameterName})";
+                case Comparison.NotIn:
+                    return $"{fieldName} NOT IN ({param.ParameterName})";
+                default:
+                case Comparison.Between:
+                case Comparison.NotBetween:
+                    throw new Exception($"The operator {nameof(@operator)} does not support just 1 SQLiteParameter.");
+            }
+        }
+
+        /// <summary>
+        /// Creates an SQL expression with the values of the <see cref="SQLiteParameter.ParameterName"/>'s. 
+        /// </summary>
+        public static string CreateExpressionString(string fieldName, Comparison @operator, params SQLiteParameter[] parameters)
+        {
+            // Correct Name and define variables
+            fieldName = SQLiteContext.Escape(fieldName);
+            switch (@operator)
+            {
+                case Comparison.In:
+                    return $"{fieldName} IN ({String.Join(", ", parameters.Select(x => x.ParameterName))})";
+                case Comparison.NotIn:
+                    return $"{fieldName} NOT IN ({String.Join(", ", parameters.Select(x => x.ParameterName))})";
+                case Comparison.Between:
+                case Comparison.NotBetween:
+                    // Ensure length
+                    if (parameters.Length != 2)
+                        throw new ArgumentException($"Invalid parameter count. Expecting 2 got {parameters.Length}.", "parameters");
+
+                    // Build sql
+                    StringBuilder builder = new StringBuilder(fieldName);
+                    builder.AppendIf(@operator == Comparison.NotBetween, " NOT BETWEEN ", " BETWEEN ");
+                    builder.Append(parameters[0].ParameterName).Append(" AND ").Append(parameters[1].ParameterName);
+                    return builder.ToString();
+                default:
+                    throw new Exception($"The operator {nameof(@operator)} does not support multiple SQLiteParameters.");
+            }
+        }
+
+        /// <summary>
+        /// Creates an SQL expression based on the literal value. The object value will not be escaped.
+        /// </summary>
+        public static string CreateExpressionString(string fieldName, Comparison @operator, SqlLiteral literal)
+        {
+            // Correct Name and define variables
+            fieldName = SQLiteContext.Escape(fieldName);
+            switch (@operator)
+            {
+                case Comparison.Equals:
+                    return $"{fieldName} = {literal.Value}";
+                case Comparison.NotEqualTo:
+                    return $"{fieldName} != {literal.Value}";
+                case Comparison.Like:
+                    return $"{fieldName} LIKE {literal.Value}";
+                case Comparison.NotLike:
+                    return $"{fieldName} NOT LIKE {literal.Value}";
+                case Comparison.GreaterThan:
+                    return $"{fieldName} > {literal.Value}";
+                case Comparison.GreaterOrEquals:
+                    return $"{fieldName} >= {literal.Value}";
+                case Comparison.LessThan:
+                    return $"{fieldName} < {literal.Value}";
+                case Comparison.LessOrEquals:
+                    return $"{fieldName} <= {literal.Value}";
+                default:
+                    throw new Exception($"Cannot parse operator {nameof(@operator)} from an SqlLiteral.");
+            }
+        }
+
+        /// <summary>
+        /// Creates an SQL expression based on the passed parameters. The object value will automatically
+        /// be escaped and properly quoted.
+        /// </summary>
+        /// <returns></returns>
+        public static string CreateExpressionString(string fieldName, Comparison @operator, object value)
+        {
+            // Correct Name and define variables
+            fieldName = SQLiteContext.Escape(fieldName);
+
+            // Only 2 options for null values
+            if (value == null || value == DBNull.Value)
+            {
+                switch (@operator)
+                {
+                    default:
+                    case Comparison.Equals:
+                        return $"{fieldName} IS NULL";
+                    case Comparison.NotEqualTo:
+                        return $"{fieldName} IS NOT NULL";
+                }
+            }
+            else
+            {
+                // Create local vars
+                StringBuilder builder = new StringBuilder();
+                Array array;
+
+                // Build sql string based on the operator
+                switch (@operator)
+                {
+                    default:
+                    case Comparison.Equals:
+                        return $"{fieldName} = {FormatSQLValue(value)}";
+                    case Comparison.NotEqualTo:
+                        return $"{fieldName} != {FormatSQLValue(value)}";
+                    case Comparison.Like:
+                        return $"{fieldName} LIKE {FormatSQLValue(value)}";
+                    case Comparison.NotLike:
+                        return $"{fieldName} NOT LIKE {FormatSQLValue(value)}";
+                    case Comparison.GreaterThan:
+                        return $"{fieldName} > {FormatSQLValue(value)}";
+                    case Comparison.GreaterOrEquals:
+                        return $"{fieldName} >= {FormatSQLValue(value)}";
+                    case Comparison.LessThan:
+                        return $"{fieldName} < {FormatSQLValue(value)}";
+                    case Comparison.LessOrEquals:
+                        return $"{fieldName} <= {FormatSQLValue(value)}";
+                    case Comparison.In:
+                    case Comparison.NotIn:
+                        array = (Array)value;
+                        builder.Append(fieldName);
+                        builder.AppendIf(@operator == Comparison.NotIn, " NOT IN (", " IN (");
+                        for (int i = 0; i < array.Length; i++)
+                        {
+                            builder.Append(FormatSQLValue(array.GetValue(i)));
+                            builder.AppendIf(i + 1 != array.Length, ',');
+                        }
+                        return builder.Append(')').ToString();
+                    case Comparison.Between:
+                    case Comparison.NotBetween:
+                        array = (Array)value;
+                        builder.Append(fieldName);
+                        builder.AppendIf(@operator == Comparison.NotBetween, " NOT BETWEEN ", " BETWEEN ");
+                        builder.Append(FormatSQLValue(array.GetValue(0)));
+                        builder.Append(" AND ");
+                        builder.Append(FormatSQLValue(array.GetValue(1)));
+                        return builder.ToString();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Formats and escapes a Value object, to the proper SQL format.
+        /// </summary>
+        /// <param name="someValue"></param>
+        /// <returns></returns>
+        public static string FormatSQLValue(object someValue)
+        {
+            // Just return null if our value is null
+            if (someValue == null) return "NULL";
+
+            // Check for numbers first
+            Type valType = someValue.GetType();
+            if (valType.IsNumericType())
+                return someValue.ToString();
+
+            // Not a numeric, so...
+            switch (valType.Name)
+            {
+                default:
+                case "String": return $"'{someValue.ToString().Replace("'", "''")}'";
+                case "SqlLiteral": return ((SqlLiteral)someValue).Value;
+                case "DateTime": return $"'{((DateTime)someValue).ToString("yyyy-MM-dd HH:mm:ss")}'";
+                case "DBNull": return "NULL";
+                case "Boolean": return (bool)someValue ? "1" : "0";
+                case "Guid": return $"'{((Guid)someValue).ToString()}'";
+                case "SelectQueryBuilder":
+                    throw new ArgumentException("Using SelectQueryBuilder in another Querybuilder statement is unsupported!", "someValue");
+            }
         }
     }
 }

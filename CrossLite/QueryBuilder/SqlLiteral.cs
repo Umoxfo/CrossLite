@@ -11,7 +11,7 @@
     /// for SQL injection strings. Miss use of this class can leave the
     /// database vulnerable to an attack.
     /// </remarks>
-    public sealed class SqlLiteral
+    public struct SqlLiteral
     {
         /// <summary>
         /// The Literal value

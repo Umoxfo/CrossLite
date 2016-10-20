@@ -10,8 +10,9 @@ namespace CrossLite.QueryBuilder
     /// Provides an object interface that can properly put together an Insert Query string.
     /// </summary>
     /// <remarks>
-    /// All parameters in the WHERE and HAVING statements will be escaped by the underlaying
-    /// DbCommand object, making the Execute*() methods SQL injection safe.
+    /// By using the BuildCommand() method, all parameters in the WHERE and HAVING statements will 
+    /// be escaped by the underlaying SQLiteCommand object, making the Execute*() methods SQL injection 
+    /// safe.
     /// </remarks>
     class InsertQueryBuilder
     {
@@ -37,19 +38,19 @@ namespace CrossLite.QueryBuilder
         #region Constructors
 
         /// <summary>
-        /// Creates a new instance of InsertQueryBuilder with the provided Database Driver.
+        /// Creates a new instance of InsertQueryBuilder with the provided SQLite connection.
         /// </summary>
-        /// <param name="context">The DbContext that will be used to query this SQL statement</param>
+        /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
         public InsertQueryBuilder(SQLiteContext context)
         {
             this.Context = context;
         }
 
         /// <summary>
-        /// Creates a new instance of InsertQueryBuilder with the provided Database Driver.
+        /// Creates a new instance of InsertQueryBuilder with the provided SQLite connection.
         /// </summary>
-        /// <param name="table">The table we are inserting into</param>
-        /// <param name="context">The DbContext that will be used to query this SQL statement</param>
+        /// <param name="table">The table name we are inserting data into</param>
+        /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
         public InsertQueryBuilder(string table, SQLiteContext context)
         {
             this.Table = table;
@@ -156,7 +157,7 @@ namespace CrossLite.QueryBuilder
                 else
                 {
                     query.Append(Item.Key);
-                    values.Append(WhereStatement.FormatSQLValue(Item.Value));
+                    values.Append(SqlExpression.FormatSQLValue(Item.Value));
                 }
             }
 

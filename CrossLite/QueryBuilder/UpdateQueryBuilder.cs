@@ -10,8 +10,8 @@ namespace CrossLite.QueryBuilder
     /// Provides an object interface that can properly put together an Update Query string.
     /// </summary>
     /// <remarks>
-    /// All parameters in the WHERE statement will be escaped by the underlaying
-    /// DbCommand object, making the Execute*() methods SQL injection safe.
+    /// By using the BuildCommand() method, all parameters in the WHERE statement will be 
+    /// escaped by the underlaying SQLiteCommand object, making the Execute() method SQL injection safe.
     /// </remarks>
     class UpdateQueryBuilder
     {
@@ -42,19 +42,19 @@ namespace CrossLite.QueryBuilder
         #region Constructors
 
         /// <summary>
-        /// Creates a new instance of UpdateQueryBuilder with the provided Database Driver.
+        /// Creates a new instance of UpdateQueryBuilder with the provided SQLite connection.
         /// </summary>
-        /// <param name="context">The DbContext that will be used to query this SQL statement</param>
+        /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
         public UpdateQueryBuilder(SQLiteContext context)
         {
             this.Context = context;
         }
 
         /// <summary>
-        /// Creates a new instance of UpdateQueryBuilder with the provided Database Driver.
+        /// Creates a new instance of UpdateQueryBuilder with the provided SQLite connection.
         /// </summary>
-        /// <param name="table">The table we are updating</param>
-        /// <param name="context">The DbContext that will be used to query this SQL statement</param>
+        /// <param name="table">The table name we are updating data in</param>
+        /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
         public UpdateQueryBuilder(string table, SQLiteContext context)
         {
             this.Table = table;
@@ -182,16 +182,16 @@ namespace CrossLite.QueryBuilder
                 else
                 {
                     if (field.Value.Mode == ValueMode.Set)
-                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(field.Key), WhereStatement.FormatSQLValue(field.Value.Value));
+                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(field.Key), SqlExpression.FormatSQLValue(field.Value.Value));
                     else
                         query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.Escape(field.Key), 
-                            GetSign(field.Value.Mode), WhereStatement.FormatSQLValue(field.Value.Value));
+                            GetSign(field.Value.Mode), SqlExpression.FormatSQLValue(field.Value.Value));
                 }
             }
 
             // Append Where
             if (WhereStatement.HasClause)
-                query.Append(" WHERE " + WhereStatement.BuildStatement(Context, parameters));
+                query.Append(" WHERE " + WhereStatement.BuildStatement(parameters));
 
             // Create Command
             SQLiteCommand command = null;

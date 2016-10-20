@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Data.SQLite;
 using System.Linq;
 using System.Text;
@@ -8,12 +7,40 @@ using System.Text;
 namespace CrossLite.QueryBuilder
 {
     /// <summary>
-    /// Provides an object interface that can properly put together a Reader Query string.
+    /// Provides an object interface that can properly put together an SQL Reader Query string.
     /// </summary>
     /// <remarks>
     /// All parameters in the WHERE and HAVING statements will be escaped by the underlaying
-    /// DbCommand object, making the Execute*() methods SQL injection safe.
+    /// DbCommand object when using the BuildCommand() method. The Execute*() methods are 
+    /// SQL injection safe and will properly escape the values in the query.
     /// </remarks>
+    /// <example>
+    /// 
+    /// Simple (select all):
+    ///     var builder = new SelectQueryBuilder(context);
+    ///     builder.From(tableName).SelectAll();
+    ///     SQLiteCommand command = builder.BuildCommand();
+    ///     
+    /// Simple (with Where statement):
+    ///     var builder = new SelectQueryBuilder(context);
+    ///     builder.From(tableName)
+    ///         .Select("col1", "col2", "col3")
+    ///         .Where("id").Between(1, 10);
+    ///     SQLiteCommand command = builder.BuildCommand();
+    ///     
+    /// Advanced Select:
+    ///     var builder = new SelectQueryBuilder(context);
+    ///     builder.From(tableName)
+    ///         .Select("col1", "col2", "col3")
+    ///             .As("id", "name", "is_admnin")
+    ///         .OrderBy("id", Sorting.Descending)
+    ///         .Where("id").GreaterThan(1)
+    ///             .And("is_admin").Equals(true);
+    ///     builder.Limit = 50;
+    ///     builder.Offset = 10;
+    ///     SQLiteCommand command = builder.BuildCommand();
+    ///     
+    /// </example>
     public class SelectQueryBuilder
     {
         #region Internal Properties
@@ -77,9 +104,9 @@ namespace CrossLite.QueryBuilder
         #endregion
 
         /// <summary>
-        /// Creates a new instance of SelectQueryBuilder with the provided Database Driver.
+        /// Creates a new instance of SelectQueryBuilder with the provided SQLite connection.
         /// </summary>
-        /// <param name="context">The DatabaseDriver that will be used to query this SQL statement</param>
+        /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
         public SelectQueryBuilder(SQLiteContext context)
         {
             this.Context = context;
@@ -91,12 +118,14 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Selects all columns in the SQL Statement being built
         /// </summary>
-        public void SelectAllColumns()
+        public SelectQueryBuilder SelectAll()
         {
             if (SelectedItems.Count == 0)
-            {
                 SelectedItems.Add(Table ?? "", new SortedList<string, ResultColumn>());
-            }
+            else
+                SelectedItems.Values[SelectedItems.Count - 1].Clear();
+            
+            return this;
         }
 
         /// <summary>
@@ -315,8 +344,52 @@ namespace CrossLite.QueryBuilder
         public SelectQueryBuilder InnerJoin(string joinTable, string joinColumn, Comparison @operator, string onTable, string onColumn)
         {
             // Add clause to list
-            var clause = new JoinClause(JoinType.InnerJoin, joinTable, joinColumn, @operator, onTable, onColumn);
-            AddJoin(clause);
+            AddJoin(new JoinClause(JoinType.InnerJoin, joinTable, joinColumn, @operator, onTable, onColumn));
+            return this;
+        }
+
+        /// <summary>
+        /// Creates a new Outer Join clause statement fot the current query object
+        /// </summary>
+        /// <param name="joinTable">The Joining Table name</param>
+        /// <param name="joinColumn">The Joining Table Comparison Field</param>
+        /// <param name="operator">the Comparison Operator used for the joining of thetwo tables</param>
+        /// <param name="onTable">The table name we are joining INTO</param>
+        /// <param name="onColumn">The From Table Comparison Field</param>
+        public SelectQueryBuilder OuterJoin(string joinTable, string joinColumn, Comparison @operator, string onTable, string onColumn)
+        {
+            // Add clause to list
+            AddJoin(new JoinClause(JoinType.OuterJoin, joinTable, joinColumn, @operator, onTable, onColumn));
+            return this;
+        }
+
+        /// <summary>
+        /// Creates a new Left Join clause statement fot the current query object
+        /// </summary>
+        /// <param name="joinTable">The Joining Table name</param>
+        /// <param name="joinColumn">The Joining Table Comparison Field</param>
+        /// <param name="operator">the Comparison Operator used for the joining of thetwo tables</param>
+        /// <param name="onTable">The table name we are joining INTO</param>
+        /// <param name="onColumn">The From Table Comparison Field</param>
+        public SelectQueryBuilder LeftJoin(string joinTable, string joinColumn, Comparison @operator, string onTable, string onColumn)
+        {
+            // Add clause to list
+            AddJoin(new JoinClause(JoinType.LeftJoin, joinTable, joinColumn, @operator, onTable, onColumn));
+            return this;
+        }
+
+        /// <summary>
+        /// Creates a new Right Join clause statement fot the current query object
+        /// </summary>
+        /// <param name="joinTable">The Joining Table name</param>
+        /// <param name="joinColumn">The Joining Table Comparison Field</param>
+        /// <param name="operator">the Comparison Operator used for the joining of thetwo tables</param>
+        /// <param name="onTable">The table name we are joining INTO</param>
+        /// <param name="onColumn">The From Table Comparison Field</param>
+        public SelectQueryBuilder RightJoin(string joinTable, string joinColumn, Comparison @operator, string onTable, string onColumn)
+        {
+            // Add clause to list
+            AddJoin(new JoinClause(JoinType.RightJoin, joinTable, joinColumn, @operator, onTable, onColumn));
             return this;
         }
 
@@ -337,6 +410,19 @@ namespace CrossLite.QueryBuilder
                 return WhereStatement.And(field, @operator, compareValue);
             else
                 return WhereStatement.Or(field, @operator, compareValue);
+        }
+
+        /// <summary>
+        /// Creates a where clause to add to the query's where statement
+        /// </summary>
+        /// <param name="field">The column name</param>
+        /// <returns></returns>
+        public SqlExpression Where(string field)
+        {
+            if (WhereStatement.InnerClauseOperator == LogicOperator.And)
+                return WhereStatement.And(field);
+            else
+                return WhereStatement.Or(field);
         }
 
         #endregion Wheres
@@ -383,14 +469,14 @@ namespace CrossLite.QueryBuilder
 
         /// <summary>
         /// Builds the query string with the current SQL Statement, and
-        /// returns the DbCommand to be executed. All WHERE and HAVING paramenters
+        /// returns the SQLiteCommand to be executed. All WHERE and HAVING paramenters
         /// are propery escaped, making this command SQL Injection safe.
         /// </summary>
         /// <returns></returns>
         public SQLiteCommand BuildCommand() => BuildQuery(true) as SQLiteCommand;
 
         /// <summary>
-        /// Builds the query string or DbCommand
+        /// Builds the query string or SQLiteCommand
         /// </summary>
         /// <param name="BuildCommand"></param>
         /// <returns></returns>
@@ -401,19 +487,19 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("No tables were specified for this query.");
 
             // Start Query
-            StringBuilder query = new StringBuilder("SELECT ");
+            StringBuilder query = new StringBuilder("SELECT ", 256);
             query.AppendIf(Distinct, "DISTINCT ");
 
-            // Append columns
+            // Append columns from each table
             int tableCount = SelectedItems.Count;
-            foreach (var tables in SelectedItems)
+            foreach (var table in SelectedItems)
             {
                 int tableId = 1;
-                int count = tables.Value.Count;
+                int colCount = table.Value.Count;
                 tableCount--;
 
                 // Check if the user wants to select all columns
-                if (count == 0)
+                if (colCount == 0)
                 {
                     query.AppendFormat("{0}.*", SQLiteContext.Escape($"t{tableId}"));
                     query.AppendIf(tableCount > 0, ", ");
@@ -421,7 +507,7 @@ namespace CrossLite.QueryBuilder
                 else
                 {
                     // Add each result selector to the query
-                    foreach (ResultColumn column in tables.Value.Values)
+                    foreach (ResultColumn column in table.Value.Values)
                     {
                         string name = column.Name;
                         string alias = column.Alias ?? column.Name;
@@ -447,7 +533,7 @@ namespace CrossLite.QueryBuilder
                         }
 
                         // If we have more results to select, append Comma
-                        query.AppendIf(--count > 0 || tableCount > 0, ", ");
+                        query.AppendIf(--colCount > 0 || tableCount > 0, ", ");
                     }
                 }
 
@@ -485,7 +571,7 @@ namespace CrossLite.QueryBuilder
                     query.Append($" {SQLiteContext.Escape(Clause.JoiningTable)} AS");
                     query.Append($" {SQLiteContext.Escape($"t{tableId++}")} ON ");
                     query.Append(
-                        WhereStatement.CreateComparisonClause(
+                        SqlExpression.CreateExpressionString(
                             $"{Clause.JoiningTable}.{Clause.JoiningColumn}",
                             Clause.ComparisonOperator,
                             new SqlLiteral(SQLiteContext.Escape($"{Clause.FromTable}.{Clause.FromColumn}"))
@@ -497,7 +583,12 @@ namespace CrossLite.QueryBuilder
             // Append Where Statement
             List<SQLiteParameter> parameters = new List<SQLiteParameter>();
             if (WhereStatement.HasClause)
-                query.Append(" WHERE " + WhereStatement.BuildStatement(Context, parameters));
+            {
+                if (BuildCommand)
+                    query.Append(" WHERE " + WhereStatement.BuildStatement(parameters));
+                else
+                    query.Append(" WHERE " + WhereStatement.BuildStatement());
+            }
 
             // Append GroupBy
             if (GroupByColumns.Count > 0)
@@ -509,7 +600,7 @@ namespace CrossLite.QueryBuilder
                 if (GroupByColumns.Count == 0)
                     throw new Exception("Having statement was set without Group By");
 
-                query.Append(" HAVING " + HavingStatement.BuildStatement(Context, parameters));
+                query.Append(" HAVING " + HavingStatement.BuildStatement(parameters));
             }
 
             // Append OrderBy
@@ -546,13 +637,35 @@ namespace CrossLite.QueryBuilder
         }
 
         /// <summary>
-        /// Executes the built SQL statement on the Database connection that was passed
-        /// in the contructor. All WHERE and HAVING paramenters are propery escaped, 
-        /// making this command SQL Injection safe.
+        /// Executes the built SQL statement on the SQLite database connection that was passed
+        /// in the constructor. All WHERE and HAVING paramenters are escaped, making this command 
+        /// SQL Injection safe.
         /// </summary>
         public T ExecuteScalar<T>() where T : IConvertible
         {
             return Context.ExecuteScalar<T>(BuildCommand());
+        }
+
+        /// <summary>
+        /// Executes the built SQL statement on the SQLite database connection that was passed
+        /// in the constructor. All WHERE and HAVING paramenters are escaped, making this command 
+        /// SQL Injection safe.
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<Dictionary<string, object>> ExecuteQuery()
+        {
+            return Context.ExecuteReader(BuildCommand());
+        }
+
+        /// <summary>
+        /// Executes the built SQL statement on the SQLite database connection that was passed
+        /// in the constructor. All WHERE and HAVING paramenters are escaped, making this command 
+        /// SQL Injection safe.
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<T> ExecuteQuery<T>() where T : class
+        {
+            return Context.ExecuteReader<T>(BuildCommand());
         }
     }
 }

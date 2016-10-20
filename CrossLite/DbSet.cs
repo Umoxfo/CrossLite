@@ -209,7 +209,7 @@ namespace CrossLite
             List<SQLiteParameter> parameters;
             string sql = String.Format("DELETE FROM {0} WHERE {1}",
                 SQLiteContext.Escape(EntityTable.TableName),
-                statement.BuildStatement(Context, out parameters)
+                statement.BuildStatement(out parameters)
             );
 
             // Execute the command
@@ -232,7 +232,7 @@ namespace CrossLite
             UpdateQueryBuilder builder = new UpdateQueryBuilder(EntityTable.TableName, Context);
             foreach (var attribute in EntityTable.Columns)
             {
-                // Keys go in the WHERE statement, not the SELECT statement
+                // Keys go in the WHERE statement, not the SET statement
                 if (EntityTable.PrimaryKeys.Contains(attribute.Key))
                 {
                     PropertyInfo info = attribute.Value.Property;
@@ -350,7 +350,7 @@ namespace CrossLite
             List<SQLiteParameter> parameters;
             string sql = String.Format("SELECT EXISTS(SELECT 1 FROM {0} WHERE {1} LIMIT 1);",
                 SQLiteContext.Escape(tableName),
-                where.BuildStatement(Context, out parameters)
+                where.BuildStatement(out parameters)
             );
 
             // Execute the command

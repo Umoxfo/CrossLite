@@ -434,6 +434,69 @@ namespace CrossLite
         }
 
         /// <summary>
+        /// Executes the given Sql command and returns the result rows as entities
+        /// </summary>
+        /// <returns></returns>
+        internal IEnumerable<T> ExecuteReader<T>(SQLiteCommand command) where T : class
+        {
+            // Get our Table Mapping
+            Type objType = typeof(T);
+            TableMapping table = EntityCache.GetTableMap(objType);
+            command.Connection = this.Connection;
+
+            // Create the SQL Command
+            using (command)
+            using (SQLiteDataReader reader = command.ExecuteReader())
+            {
+                // If we have rows, add them to the list
+                if (reader.HasRows)
+                {
+                    // Add each row to the rows list
+                    while (reader.Read())
+                    {
+                        // Add object
+                        yield return ConvertToEntity<T>(table, reader);
+                    }
+                }
+
+                // Cleanup
+                reader.Close();
+            }
+        }
+
+        /// <summary>
+        /// Executes the given Sql command and returns the result rows
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<Dictionary<string, object>> ExecuteReader(SQLiteCommand command)
+        {
+            // Create our Rows result
+            var rows = new List<Dictionary<string, object>>();
+
+            // Create the SQL Command
+            using (command)
+            using (SQLiteDataReader reader = command.ExecuteReader())
+            {
+                // If we have rows, add them to the list
+                if (reader.HasRows)
+                {
+                    // Add each row to the rows list
+                    while (reader.Read())
+                    {
+                        Dictionary<string, object> row = new Dictionary<string, object>(reader.FieldCount);
+                        for (int i = 0; i < reader.FieldCount; ++i)
+                            row.Add(reader.GetName(i), reader.GetValue(i));
+
+                        yield return row;
+                    }
+                }
+
+                // Cleanup
+                reader.Close();
+            }
+        }
+
+        /// <summary>
         /// Peforms a SELECT query on the Entity Type, and returns the Enumerator
         /// for the Result set.
         /// </summary>
@@ -494,48 +557,57 @@ namespace CrossLite
         internal TEntity ConvertToEntity<TEntity>(TableMapping table, SQLiteDataReader reader)
         {
             // Use reflection to map the column name to the object Property
-            TEntity entity = (TEntity)Activator.CreateInstance(table.EntityType);
+            TEntity entity = (TEntity)Activator.CreateInstance(table.EntityType, new object[] { });
             for (int i = 0; i < reader.FieldCount; ++i)
             {
                 string attrName = reader.GetName(i);
                 PropertyInfo property = table.GetAttribute(attrName).Property;
 
-                // SQLite doesn't support nearly as many primitive types as
-                // C# does, so we must translate
-                switch (Type.GetTypeCode(property.PropertyType))
+                if (property.PropertyType.IsEnum)
                 {
-                    case TypeCode.Byte:
-                        property.SetValue(entity, reader.GetByte(i));
-                        break;
-                    case TypeCode.Int16:
-                        property.SetValue(entity, reader.GetInt16(i));
-                        break;
-                    case TypeCode.Int32:
-                        property.SetValue(entity, reader.GetInt32(i));
-                        break;
-                    case TypeCode.Int64:
-                        property.SetValue(entity, reader.GetInt64(i));
-                        break;
-                    case TypeCode.Boolean:
-                        property.SetValue(entity, reader.GetBoolean(i));
-                        break;
-                    case TypeCode.Decimal:
-                        property.SetValue(entity, reader.GetDecimal(i));
-                        break;
-                    case TypeCode.Double:
-                        property.SetValue(entity, reader.GetDouble(i));
-                        break;
-                    case TypeCode.Char:
-                        property.SetValue(entity, reader.GetChar(i));
-                        break;
-                    default:
-                        // Correct DBNull values
-                        object val = reader.GetValue(i);
-                        if (val is DBNull)
-                            val = String.Empty;
+                    string value = reader.GetString(i);
+                    object val = Enum.Parse(property.PropertyType, value);
+                    property.SetValue(entity, val);
+                }
+                else
+                {
+                    // SQLite doesn't support nearly as many primitive types as
+                    // C# does, so we must translate
+                    switch (Type.GetTypeCode(property.PropertyType))
+                    {
+                        case TypeCode.Byte:
+                            property.SetValue(entity, reader.GetByte(i));
+                            break;
+                        case TypeCode.Int16:
+                            property.SetValue(entity, reader.GetInt16(i));
+                            break;
+                        case TypeCode.Int32:
+                            property.SetValue(entity, reader.GetInt32(i));
+                            break;
+                        case TypeCode.Int64:
+                            property.SetValue(entity, reader.GetInt64(i));
+                            break;
+                        case TypeCode.Boolean:
+                            property.SetValue(entity, reader.GetBoolean(i));
+                            break;
+                        case TypeCode.Decimal:
+                            property.SetValue(entity, reader.GetDecimal(i));
+                            break;
+                        case TypeCode.Double:
+                            property.SetValue(entity, reader.GetDouble(i));
+                            break;
+                        case TypeCode.Char:
+                            property.SetValue(entity, reader.GetChar(i));
+                            break;
+                        default:
+                            // Correct DBNull values
+                            object val = reader.GetValue(i);
+                            if (val is DBNull)
+                                val = String.Empty;
 
-                        property.SetValue(entity, val);
-                        break;
+                            property.SetValue(entity, val);
+                            break;
+                    }
                 }
             }
 
@@ -553,6 +625,11 @@ namespace CrossLite
         /// <returns></returns>
         internal static SQLiteDataType GetSQLiteType(Type propertyType)
         {
+            if (propertyType.IsEnum)
+            {
+                return SQLiteDataType.TEXT;
+            }
+
             switch (Type.GetTypeCode(propertyType))
             {
                 case TypeCode.Boolean:
