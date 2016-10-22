@@ -705,7 +705,9 @@ namespace CrossLite
 
             // Split the value by the period seperator, and determine if any identifiers are a keyword
             var parts = value.Split('.');
-            var hasKeyword = (parts.Length > 1) ? ContainsKeyword(parts) : IsKeyword(value);
+            var hasKeyword = mode == AttributeQuoteMode.All;
+            if (mode == AttributeQuoteMode.KeywordsOnly)
+                hasKeyword = (parts.Length > 1) ? ContainsKeyword(parts) : IsKeyword(value);
 
             // Appy the quoting where needed..
             if (parts.Length > 1)
@@ -747,7 +749,7 @@ namespace CrossLite
         private static string ApplyQuotes(string[] values, AttributeQuoteMode mode, AttributeQuoteKind kind)
         {
             var chars = EscapeChars[kind];
-            var builder = new StringBuilder().Append(chars[0]);
+            var builder = new StringBuilder();
             for (int i = 0; i < values.Length; i++)
             {
                 // Do we need to apply quoting to this string?
@@ -756,9 +758,9 @@ namespace CrossLite
                 else
                     builder.Append(values[i]);
 
-                builder.AppendIf(i + 1 == values.Length, $"{chars[1]}.{chars[0]}", String.Empty);
+                builder.AppendIf(i + 1 < values.Length, ".");
             }
-            return builder.Append(chars[1]).ToString();
+            return builder.ToString();
         }
 
         /// <summary>
