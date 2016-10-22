@@ -122,7 +122,7 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("No fields to insert");
 
             // Start Query
-            StringBuilder query = new StringBuilder($"INSERT INTO {SQLiteContext.Escape(Table)} (");
+            StringBuilder query = new StringBuilder($"INSERT INTO {SQLiteContext.QuoteKeyword(Table)} (");
             StringBuilder values = new StringBuilder();
             List<SQLiteParameter> parameters = new List<SQLiteParameter>();
             bool first = true;
@@ -151,7 +151,7 @@ namespace CrossLite.QueryBuilder
                     parameters.Add(Param);
 
                     // Append query's
-                    query.Append(SQLiteContext.Escape(Item.Key));
+                    query.Append(SQLiteContext.QuoteKeyword(Item.Key));
                     values.Append(Param.ParameterName);
                 }
                 else

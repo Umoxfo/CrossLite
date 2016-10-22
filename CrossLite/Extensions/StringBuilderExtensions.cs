@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text;
 
 namespace System
 {
-    public static class StringBuilderExtensions
+    internal static class StringBuilderExtensions
     {
         /// <summary>
         /// Clears the current contents of this StringBuilder

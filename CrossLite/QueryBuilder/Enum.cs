@@ -44,4 +44,12 @@
         LeftJoin,
         RightJoin,
     }
+
+    public enum UnionType
+    {
+        Union,
+        UnionAll,
+        Except,
+        Intersect
+    }
 }

@@ -39,7 +39,7 @@ namespace CrossLite
         {
             get
             {
-                string table = SQLiteContext.Escape(EntityTable.TableName);
+                string table = Context.QuoteAttribute(EntityTable.TableName);
                 string query = $"SELECT * FROM {table} LIMIT 1 OFFSET {index}";
                 return Context.Query<TEntity>(query).FirstOrDefault();
             }
@@ -52,7 +52,7 @@ namespace CrossLite
         {
             get
             {
-                string table = SQLiteContext.Escape(EntityTable.TableName);
+                string table = Context.QuoteAttribute(EntityTable.TableName);
                 string query = $"SELECT COUNT(1) FROM {table}";
                 return Context.ExecuteScalar<int>(query);
             }
@@ -208,7 +208,7 @@ namespace CrossLite
             // Build the SQL query
             List<SQLiteParameter> parameters;
             string sql = String.Format("DELETE FROM {0} WHERE {1}",
-                SQLiteContext.Escape(EntityTable.TableName),
+                SQLiteContext.QuoteKeyword(EntityTable.TableName),
                 statement.BuildStatement(out parameters)
             );
 
@@ -349,7 +349,7 @@ namespace CrossLite
             // Build the SQL query
             List<SQLiteParameter> parameters;
             string sql = String.Format("SELECT EXISTS(SELECT 1 FROM {0} WHERE {1} LIMIT 1);",
-                SQLiteContext.Escape(tableName),
+                SQLiteContext.QuoteKeyword(tableName),
                 where.BuildStatement(out parameters)
             );
 

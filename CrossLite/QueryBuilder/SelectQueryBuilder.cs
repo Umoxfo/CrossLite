@@ -54,12 +54,16 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Gets or Sets whether this Select statement will be distinct
         /// </summary>
-        public bool Distinct = false;
+        public bool Distinct { get; set; } =false;
 
         /// <summary>
         /// Gets or Sets the selected table for this query
         /// </summary>
-        public string Table { get; set; }
+        public string Table
+        {
+            get { return (SelectedItems.Count > 0) ? SelectedItems.Keys[0] : null;  }
+            set { From(value); }
+        }
 
         /// <summary>
         /// Gets a sorted list of (TableName => SelectedColumns[ColumnName => ColumnData])
@@ -69,12 +73,12 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// The Where statement for this query
         /// </summary>
-        public WhereStatement WhereStatement { get; set; } = new WhereStatement();
+        public WhereStatement WhereStatement { get; set; }
 
         /// <summary>
         /// The Having statement for this query
         /// </summary>
-        public WhereStatement HavingStatement { get; set; } = new WhereStatement();
+        public WhereStatement HavingStatement { get; set; }
 
         /// <summary>
         /// Specifies the number of rows to return, after processing the OFFSET clause.
@@ -101,6 +105,11 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public List<JoinClause> Joins { get; set; } = new List<JoinClause>();
 
+        /// <summary>
+        /// Gets a list of columns this query will Group By
+        /// </summary>
+        public List<UnionStatement> Unions { get; set; } = new List<UnionStatement>(2);
+
         #endregion
 
         /// <summary>
@@ -110,7 +119,11 @@ namespace CrossLite.QueryBuilder
         public SelectQueryBuilder(SQLiteContext context)
         {
             this.Context = context;
-            SelectedItems = new SortedList<string, SortedList<string, ResultColumn>>();
+            this.SelectedItems = new SortedList<string, SortedList<string, ResultColumn>>();
+
+            // Set qouting modes
+            this.WhereStatement = new WhereStatement(context);
+            this.HavingStatement = new WhereStatement(context);
         }
 
         #region Select Cols
@@ -142,7 +155,7 @@ namespace CrossLite.QueryBuilder
         /// <param name="columnName">The Distinct column name</param>
         public SelectQueryBuilder SelectDistinctCount(string columnName)
         {
-            columnName = SQLiteContext.Escape(columnName);
+            columnName = SQLiteContext.QuoteKeyword(columnName);
             return SelectColumn($"COUNT(DISTINCT {columnName})", "count", false);
         }
 
@@ -213,14 +226,11 @@ namespace CrossLite.QueryBuilder
         {
             // Ensure we are not null
             if (String.IsNullOrWhiteSpace(table))
-                throw new ArgumentNullException("table");
-
-            // Set property
-            Table = table;
+                throw new ArgumentNullException("Tablename cannot be null or empty!", "table");
 
             // Ensure created with main table index
             if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table, new SortedList<string, ResultColumn>());
+                SelectedItems.Add(table, new SortedList<string, ResultColumn>());
             else
                 SelectedItems.Keys[0] = table;
 
@@ -460,6 +470,172 @@ namespace CrossLite.QueryBuilder
 
         #endregion Having
 
+        #region Union
+
+        /// <summary>
+        /// Adds a UNION clause to the query, which is used to combine the results of two or more 
+        /// SELECT statements without returning any duplicate rows.
+        /// </summary>
+        /// <param name="table">The table to unionize</param>
+        /// <returns>Returns a new instance of <see cref="SelectQueryBuilder"/> for the union query.</returns>
+        public SelectQueryBuilder Union(string table)
+        {
+            var statement = new UnionStatement()
+            {
+                Type = UnionType.Union,
+                Query = new SelectQueryBuilder(Context).From(table)
+            };
+            Unions.Add(statement);
+            return statement.Query;
+        }
+
+        /// <summary>
+        /// Adds a UNION clause to the query, which is used to combine the results of two or more 
+        /// SELECT statements without returning any duplicate rows.
+        /// </summary>
+        /// <param name="query">The query to compound in this query statement</param>
+        /// <returns>Returns this instance of <see cref="SelectQueryBuilder"/></returns>
+        public SelectQueryBuilder Union(SelectQueryBuilder query)
+        {
+            var statement = new UnionStatement()
+            {
+                Type = UnionType.Union,
+                Query = query
+            };
+            Unions.Add(statement);
+            return this;
+        }
+
+        /// <summary>
+        /// Adds a UNION ALL clause to the query, which is used to combine the results of two or more 
+        /// SELECT statements and it does not remove duplicate rows between the various SELECT statements.
+        /// </summary>
+        /// <param name="table">The table to unionize</param>
+        /// <returns>Returns a new instance of <see cref="SelectQueryBuilder"/> for the union query.</returns>
+        public SelectQueryBuilder UnionAll(string table)
+        {
+            var statement = new UnionStatement()
+            {
+                Type = UnionType.UnionAll,
+                Query = new SelectQueryBuilder(Context).From(table)
+            };
+            Unions.Add(statement);
+            return statement.Query;
+        }
+
+        /// <summary>
+        /// Adds a UNION ALL clause to the query, which is used to combine the results of two or more 
+        /// SELECT statements and it does not remove duplicate rows between the various SELECT statements.
+        /// </summary>
+        /// <param name="query">The query to compound in this query statement</param>
+        /// <returns>Returns this instance of <see cref="SelectQueryBuilder"/></returns>
+        public SelectQueryBuilder UnionAll(SelectQueryBuilder query)
+        {
+            var statement = new UnionStatement()
+            {
+                Type = UnionType.UnionAll,
+                Query = query
+            };
+            Unions.Add(statement);
+            return this;
+        }
+
+        /// <summary>
+        /// Adds an EXCEPT operator to the query, which is used to return all rows in this SELECT statement 
+        /// that are not returned by the new SELECT statement
+        /// </summary>
+        /// <param name="table">The table to unionize</param>
+        /// <returns>Returns a new instance of <see cref="SelectQueryBuilder"/> for the union query.</returns>
+        public SelectQueryBuilder Except(string table)
+        {
+            var statement = new UnionStatement()
+            {
+                Type = UnionType.Except,
+                Query = new SelectQueryBuilder(Context).From(table)
+            };
+            Unions.Add(statement);
+            return statement.Query;
+        }
+
+        /// <summary>
+        /// Adds an EXCEPT operator to the query, which is used to return all rows in this SELECT statement 
+        /// that are not returned by the new SELECT statement
+        /// </summary>
+        /// <param name="query">The query to compound in this query statement</param>
+        /// <returns>Returns this instance of <see cref="SelectQueryBuilder"/></returns>
+        public SelectQueryBuilder Except(SelectQueryBuilder query)
+        {
+            var statement = new UnionStatement()
+            {
+                Type = UnionType.Except,
+                Query = query
+            };
+            Unions.Add(statement);
+            return this;
+        }
+
+        /// <summary>
+        /// Adds an INTERSECT operator to the query, which returns the intersection of 2 or more datasets
+        /// </summary>
+        /// <param name="table">The table to intersect</param>
+        /// <returns>Returns a new instance of <see cref="SelectQueryBuilder"/> for the union query.</returns>
+        public SelectQueryBuilder Intersect(string table)
+        {
+            var statement = new UnionStatement()
+            {
+                Type = UnionType.Intersect,
+                Query = new SelectQueryBuilder(Context).From(table)
+            };
+            Unions.Add(statement);
+            return statement.Query;
+        }
+
+        /// <summary>
+        /// Adds an INTERSECT operator to the query, which returns the intersection of 2 or more datasets
+        /// </summary>
+        /// <param name="query">The query to compound in this query statement</param>
+        /// <returns>Returns this instance of <see cref="SelectQueryBuilder"/></returns>
+        public SelectQueryBuilder Intersect(SelectQueryBuilder query)
+        {
+            var statement = new UnionStatement()
+            {
+                Type = UnionType.Intersect,
+                Query = query
+            };
+            Unions.Add(statement);
+            return this;
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Bypasses the specified amount of records (offset) in the result set.
+        /// </summary>
+        /// <param name="">The offset in the query</param>
+        /// <returns></returns>
+        public SelectQueryBuilder Skip(int count)
+        {
+            // Set internal value
+            this.Offset = count;
+
+            // Allow chaining
+            return this;
+        }
+
+        /// <summary>
+        /// Specifies the maximum number of records to return in the query (limit)
+        /// </summary>
+        /// <param name="">The number of records to grab from the result set</param>
+        /// <returns></returns>
+        public SelectQueryBuilder Take(int count)
+        {
+            // Set internal value
+            this.Limit = count;
+
+            // Allow chaining
+            return this;
+        }
+
         /// <summary>
         /// Builds the query string with the current SQL Statement, and returns
         /// the querystring. This method is NOT Sql Injection safe!
@@ -478,9 +654,9 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Builds the query string or SQLiteCommand
         /// </summary>
-        /// <param name="BuildCommand"></param>
+        /// <param name="buildCommand"></param>
         /// <returns></returns>
-        protected object BuildQuery(bool BuildCommand)
+        protected object BuildQuery(bool buildCommand)
         {
             // Make sure we have a table name
             if (SelectedItems.Count == 0 || String.IsNullOrWhiteSpace(SelectedItems.Keys[0]))
@@ -501,7 +677,7 @@ namespace CrossLite.QueryBuilder
                 // Check if the user wants to select all columns
                 if (colCount == 0)
                 {
-                    query.AppendFormat("{0}.*", SQLiteContext.Escape($"t{tableId}"));
+                    query.AppendFormat("{0}.*", Context.QuoteAttribute($"t{tableId}"));
                     query.AppendIf(tableCount > 0, ", ");
                 }
                 else
@@ -516,20 +692,20 @@ namespace CrossLite.QueryBuilder
                         // Do escaping unless the result is an aggregate funtion,
                         // or the user specifies otherwise
                         if (!isAggregate && column.Escape)
-                            name = SQLiteContext.Escape(name);
+                            name = Context.QuoteAttribute(name);
 
                         // Do NOT apply table name prefix on functions
                         if (!isAggregate)
                         {
                             query.AppendFormat("{0}.{1} AS {2}",
-                                SQLiteContext.Escape($"t{tableId}"),
+                                Context.QuoteAttribute($"t{tableId}"),
                                 name,
-                                SQLiteContext.Escape(alias)
+                                Context.QuoteAttribute(alias)
                             );
                         }
                         else
                         {
-                            query.AppendFormat("{0} AS {1}", name, SQLiteContext.Escape(alias));
+                            query.AppendFormat("{0} AS {1}", name, Context.QuoteAttribute(alias));
                         }
 
                         // If we have more results to select, append Comma
@@ -542,16 +718,16 @@ namespace CrossLite.QueryBuilder
             }
 
             // Append main Table
-            query.Append($" FROM {SQLiteContext.Escape(Table)} AS {SQLiteContext.Escape("t1")}");
+            query.Append($" FROM {Context.QuoteAttribute(Table)} AS {Context.QuoteAttribute("t1")}");
 
             // Append Joined tables
             if (Joins.Count > 0)
             {
                 int tableId = 2;
-                foreach (JoinClause Clause in Joins)
+                foreach (JoinClause clause in Joins)
                 {
                     // Convert join type to string
-                    switch (Clause.JoinType)
+                    switch (clause.JoinType)
                     {
                         case JoinType.InnerJoin:
                             query.Append(" JOIN ");
@@ -568,13 +744,13 @@ namespace CrossLite.QueryBuilder
                     }
 
                     // Append the join statement
-                    query.Append($" {SQLiteContext.Escape(Clause.JoiningTable)} AS");
-                    query.Append($" {SQLiteContext.Escape($"t{tableId++}")} ON ");
+                    query.Append($" {Context.QuoteAttribute(clause.JoiningTable)} AS");
+                    query.Append($" {Context.QuoteAttribute($"t{tableId++}")} ON ");
                     query.Append(
                         SqlExpression.CreateExpressionString(
-                            $"{Clause.JoiningTable}.{Clause.JoiningColumn}",
-                            Clause.ComparisonOperator,
-                            new SqlLiteral(SQLiteContext.Escape($"{Clause.FromTable}.{Clause.FromColumn}"))
+                            Context.QuoteAttribute($"{clause.JoiningTable}.{clause.JoiningColumn}"),
+                            clause.ComparisonOperator,
+                            new SqlLiteral(Context.QuoteAttribute($"{clause.FromTable}.{clause.FromColumn}"))
                         )
                     );
                 }
@@ -584,7 +760,7 @@ namespace CrossLite.QueryBuilder
             List<SQLiteParameter> parameters = new List<SQLiteParameter>();
             if (WhereStatement.HasClause)
             {
-                if (BuildCommand)
+                if (buildCommand)
                     query.Append(" WHERE " + WhereStatement.BuildStatement(parameters));
                 else
                     query.Append(" WHERE " + WhereStatement.BuildStatement());
@@ -592,7 +768,7 @@ namespace CrossLite.QueryBuilder
 
             // Append GroupBy
             if (GroupByColumns.Count > 0)
-                query.Append(" GROUP BY " + String.Join(", ", GroupByColumns.Select(x => SQLiteContext.Escape(x))));
+                query.Append(" GROUP BY " + String.Join(", ", GroupByColumns.Select(x => Context.QuoteAttribute(x))));
 
             // Append Having
             if (HavingStatement.HasClause)
@@ -608,12 +784,12 @@ namespace CrossLite.QueryBuilder
             {
                 int count = OrderByStatements.Count;
                 query.Append(" ORDER BY");
-                foreach (OrderByClause Clause in OrderByStatements)
+                foreach (OrderByClause clause in OrderByStatements)
                 {
-                    query.Append($" {Clause.FieldName}");
+                    query.Append($" {Context.QuoteAttribute(clause.FieldName)}");
 
                     // Add sorting if not default
-                    query.AppendIf(Clause.SortOrder == Sorting.Descending, " DESC");
+                    query.AppendIf(clause.SortOrder == Sorting.Descending, " DESC");
 
                     // Append seperator if we have more orderby statements
                     query.AppendIf(--count > 0, ",");
@@ -626,14 +802,14 @@ namespace CrossLite.QueryBuilder
 
             // Create Command
             SQLiteCommand command = null;
-            if (BuildCommand)
+            if (buildCommand)
             {
                 command = Context.CreateCommand(query.ToString());
                 command.Parameters.AddRange(parameters.ToArray());
             }
 
             // Return Result
-            return (BuildCommand) ? command as object : query.ToString();
+            return (buildCommand) ? command as object : query.ToString();
         }
 
         /// <summary>

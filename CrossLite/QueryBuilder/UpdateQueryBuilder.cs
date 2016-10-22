@@ -151,7 +151,7 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("No fields to update");
 
             // Start Query
-            StringBuilder query = new StringBuilder($"UPDATE {SQLiteContext.Escape(Table)} SET ");
+            StringBuilder query = new StringBuilder($"UPDATE {SQLiteContext.QuoteKeyword(Table)} SET ");
             List<SQLiteParameter> parameters = new List<SQLiteParameter>();
 
             // Add Fields
@@ -175,16 +175,16 @@ namespace CrossLite.QueryBuilder
 
                     // Append Query
                     if (field.Value.Mode == ValueMode.Set)
-                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(field.Key), param.ParameterName);
+                        query.AppendFormat("{0} = {1}", SQLiteContext.QuoteKeyword(field.Key), param.ParameterName);
                     else
-                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.Escape(field.Key), GetSign(field.Value.Mode), param.ParameterName);
+                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.QuoteKeyword(field.Key), GetSign(field.Value.Mode), param.ParameterName);
                 }
                 else
                 {
                     if (field.Value.Mode == ValueMode.Set)
-                        query.AppendFormat("{0} = {1}", SQLiteContext.Escape(field.Key), SqlExpression.FormatSQLValue(field.Value.Value));
+                        query.AppendFormat("{0} = {1}", SQLiteContext.QuoteKeyword(field.Key), SqlExpression.FormatSQLValue(field.Value.Value));
                     else
-                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.Escape(field.Key), 
+                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.QuoteKeyword(field.Key), 
                             GetSign(field.Value.Mode), SqlExpression.FormatSQLValue(field.Value.Value));
                 }
             }

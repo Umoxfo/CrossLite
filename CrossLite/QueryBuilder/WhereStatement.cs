@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Text;
 
 namespace CrossLite.QueryBuilder
@@ -35,12 +34,34 @@ namespace CrossLite.QueryBuilder
         public bool HasClause => Clauses.Any(x => x.Expressions.Count > 0);
 
         /// <summary>
+        /// Gets or sets the <see cref="CrossLite.AttributeQuoteMode"/> this instance will use for queries
+        /// </summary>
+        public AttributeQuoteMode AttributeQuoteMode { get; set; } = SQLiteContext.DefaultAttributeQuoteMode;
+
+        /// <summary>
+        /// Gets or sets the <see cref="CrossLite.AttributeQuoteKind"/> this instance will use for queries
+        /// </summary>
+        public AttributeQuoteKind AttributeQuoteKind { get; set; } = SQLiteContext.DefaultAttributeQuoteKind;
+
+        /// <summary>
         /// Creates a new instance of <see cref="WhereStatement"/>
         /// </summary>
         public WhereStatement()
         {
             CurrentClause = new WhereClause();
             Clauses = new List<WhereClause>() { CurrentClause };
+        }
+
+        /// <summary>
+        /// Creates a new instance of <see cref="WhereStatement"/> using the quoting settings
+        /// from the supplied SQLiteContext
+        /// </summary>
+        public WhereStatement(SQLiteContext context)
+        {
+            CurrentClause = new WhereClause();
+            Clauses = new List<WhereClause>() { CurrentClause };
+            AttributeQuoteMode = context.AttributeQuoteMode;
+            AttributeQuoteKind = context.AttributeQuoteKind;
         }
 
         /// <summary>

@@ -82,6 +82,7 @@
     <Compile Include="DbSet.cs" />
     <Compile Include="EntityCache.cs" />
     <Compile Include="EntityException.cs" />
+    <Compile Include="AttributeQuoteMode.cs" />
     <Compile Include="Extensions\StringBuilderExtensions.cs" />
     <Compile Include="Extensions\TypeExtensions.cs" />
     <Compile Include="CodeFirst\ForeignKeyConstraint.cs" />
@@ -93,9 +94,11 @@
     <Compile Include="QueryBuilder\OrderByClause.cs" />
     <Compile Include="QueryBuilder\SelectQueryBuilder.cs" />
     <Compile Include="QueryBuilder\SqlLiteral.cs" />
+    <Compile Include="QueryBuilder\UnionStatement.cs" />
     <Compile Include="QueryBuilder\UpdateQueryBuilder.cs" />
     <Compile Include="CodeFirst\ForeignKey.cs" />
     <Compile Include="CodeFirst\ReferentialIntegrity.cs" />
+    <Compile Include="AttributeQuoteKind.cs" />
     <Compile Include="SQLiteContext.cs" />
     <Compile Include="SQLiteDataType.cs" />
     <Compile Include="CodeFirst\TableCreationOptions.cs" />

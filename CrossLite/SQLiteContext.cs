@@ -4,7 +4,9 @@ using System.Data;
 using System.Data.Common;
 using System.Data.SQLite;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
+using System.Text;
 using CrossLite.CodeFirst;
 
 namespace CrossLite
@@ -19,6 +21,18 @@ namespace CrossLite
     public class SQLiteContext : IDisposable
     {
         /// <summary>
+        /// Gets or sets the default <see cref="CrossLite.AttributeQuoteMode"/> for queries. New instances of
+        /// <see cref="SQLiteContext"/> with automatically dfefault to this value.
+        /// </summary>
+        public static AttributeQuoteMode DefaultAttributeQuoteMode { get; set; } = AttributeQuoteMode.None;
+
+        /// <summary>
+        /// Gets or sets the default <see cref="CrossLite.AttributeQuoteKind"/> for queries. New instances of
+        /// <see cref="SQLiteContext"/> with automatically dfefault to this value.
+        /// </summary>
+        public static AttributeQuoteKind DefaultAttributeQuoteKind { get; set; } = AttributeQuoteKind.Default;
+
+        /// <summary>
         /// The database connection
         /// </summary>
         public SQLiteConnection Connection { get; protected set; }
@@ -29,38 +43,19 @@ namespace CrossLite
         protected bool IsDisposed = false;
 
         /// <summary>
-        /// <see cref="EscapeCharacters"/>
+        /// Gets or sets the <see cref="CrossLite.AttributeQuoteMode"/> this instance will use for queries
         /// </summary>
-        protected static char[] EscapeChars = new char[2] { '`', '`' };
+        public AttributeQuoteMode AttributeQuoteMode { get; set; } = DefaultAttributeQuoteMode;
 
         /// <summary>
-        /// Gets or sets the starting and ending delimiters to use when specifying SQL 
-        /// database objects, such as tables or columns, whose names contain characters 
-        /// such as spaces or reserved tokens
+        /// Gets or sets the <see cref="CrossLite.AttributeQuoteKind"/> this instance will use for queries
         /// </summary>
-        public static char[] EscapeCharacters
-        {
-            get { return EscapeChars; }
-            set
-            {
-                // Must be 2
-                if (value.Length != 2)
-                    throw new ArgumentException("Delimiter length must be 2 characters!", "EscapeCharacters");
-
-                EscapeChars = value;
-            }
-        }
+        public AttributeQuoteKind AttributeQuoteKind { get; set; } = DefaultAttributeQuoteKind;
 
         /// <summary>
         /// Contains the conenction string used to open this connection
         /// </summary>
         public string ConnectionString { get; private set; }
-
-        /// <summary>
-        /// Gets or Sets whether any escaping will be performed on table and
-        /// column names in the query, to prevent conflicts with SQLite keywords
-        /// </summary>
-        public static bool PerformEscapeOnQuery { get; set; } = true;
 
         /// <summary>
         /// Creates a new connection to an SQLite Database
@@ -672,21 +667,269 @@ namespace CrossLite
         }
 
         /// <summary>
-        /// Wraps the string with Indentifer Delimiters, to prevent keyword
-        /// errors in SQL statements.
+        /// Takes an attribute name and qoutes it if the name is a reserved keyword. Passing
+        /// a prefixed attribute (ex: "table.attribute") is valid. The <see cref="AttributeQuoteKind"/> 
+        /// and <see cref="AttributeQuoteMode"/> options are used.
         /// </summary>
-        /// <param name="value"></param>
+        /// <param name="value">The attribute name</param>
         /// <returns></returns>
-        public static string Escape(string value)
+        public string QuoteAttribute(string value)
+        {
+            // Configuration setting
+            return QuoteKeyword(value, AttributeQuoteMode, AttributeQuoteKind);
+        }
+
+        /// <summary>
+        /// Takes an attribute name and qoutes it if the name is a reserved keyword. Passing
+        /// a prefixed attribute (ex: "table.attribute") is valid. The <see cref="DefaultAttributeQuoteKind"/> 
+        /// and <see cref="DefaultAttributeQuoteMode"/> options are used.
+        /// </summary>
+        /// <param name="value">The attribute name</param>
+        /// <returns></returns>
+        public static string QuoteKeyword(string value)
         {
             // Global configuration for escaping for now...
-            if (!PerformEscapeOnQuery)
-                return value;
-            else
-                return String.Concat(EscapeChars[0], value.Trim(EscapeChars), EscapeChars[1])
-                    .Replace(".", $"{EscapeChars[0]}.{EscapeChars[1]}");
+            return QuoteKeyword(value, DefaultAttributeQuoteMode, DefaultAttributeQuoteKind);
+        }
+
+        /// <summary>
+        /// Takes an attribute name and qoutes it if the name is a reserved keyword. Passing
+        /// a prefixed attribute (ex: "table.attribute") is valid.
+        /// </summary>
+        /// <param name="value">The attribute name</param>
+        /// <returns></returns>
+        public static string QuoteKeyword(string value, AttributeQuoteMode mode, AttributeQuoteKind kind)
+        {
+            // Lets make this simple and fast!
+            if (mode == AttributeQuoteMode.None) return value;
+
+            // Split the value by the period seperator, and determine if any identifiers are a keyword
+            var parts = value.Split('.');
+            var hasKeyword = (parts.Length > 1) ? ContainsKeyword(parts) : IsKeyword(value);
+
+            // Appy the quoting where needed..
+            if (parts.Length > 1)
+            {
+                switch (mode)
+                {
+                    case AttributeQuoteMode.All: return ApplyQuotes(parts, mode, kind);
+                    case AttributeQuoteMode.KeywordsOnly: return (hasKeyword) ? ApplyQuotes(parts, mode, kind) : value;
+                    default: return value;
+                }
+            }
+            else // Non-array
+            {
+                switch (mode)
+                {
+                    case AttributeQuoteMode.All: return ApplyQuote(value, kind);
+                    case AttributeQuoteMode.KeywordsOnly: return (hasKeyword) ? ApplyQuote(value, kind) : value;
+                    default: return value;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Performs the actual quoting of the attribute. Passing a prefixed attribute 
+        /// (ex: "table.attribute") is NOT valid, and should be passed to the 
+        /// <see cref="ApplyQuotes(string[], AttributeQuoteMode, AttributeQuoteKind))"/> 
+        /// method instead.
+        /// </summary>
+        private static string ApplyQuote(string value, AttributeQuoteKind kind)
+        {
+            var chars = EscapeChars[kind];
+            return $"{chars[0]}{value}{chars[1]}";
+        }
+
+        /// <summary>
+        /// Applies quoting to each attribute parameter that needs it, based on the AttributeQuoteMode,
+        /// and chains the result back into a string.
+        /// </summary>
+        private static string ApplyQuotes(string[] values, AttributeQuoteMode mode, AttributeQuoteKind kind)
+        {
+            var chars = EscapeChars[kind];
+            var builder = new StringBuilder().Append(chars[0]);
+            for (int i = 0; i < values.Length; i++)
+            {
+                // Do we need to apply quoting to this string?
+                if (mode == AttributeQuoteMode.All || (mode == AttributeQuoteMode.KeywordsOnly && IsKeyword(values[i])))
+                    builder.Append($"{chars[0]}{values[i]}{chars[1]}");
+                else
+                    builder.Append(values[i]);
+
+                builder.AppendIf(i + 1 == values.Length, $"{chars[1]}.{chars[0]}", String.Empty);
+            }
+            return builder.Append(chars[1]).ToString();
+        }
+
+        /// <summary>
+        /// Returns whether the specified value is an SQLite reserved keyword.
+        /// Passing a prefixed attribute (ex: "table.attribute") is NOT valid, and should
+        /// be passed to the <see cref="ContainsKeyword(string[])"/> method instead.
+        /// </summary>
+        /// <param name="value">The attribute name</param>
+        /// <returns></returns>
+        public static bool IsKeyword(string value)
+        {
+            return Keywords.FindIndex(x => x.Equals(value, StringComparison.OrdinalIgnoreCase)) >= 0;
+        }
+
+        /// <summary>
+        /// Returns whether any of the specified values is an SQLite reserved keyword.
+        /// </summary>
+        /// <param name="values"></param>
+        /// <returns></returns>
+        private static bool ContainsKeyword(string[] values)
+        {
+            foreach (var key in values)
+                if (Keywords.FindIndex(x => x.Equals(key, StringComparison.OrdinalIgnoreCase)) >= 0)
+                    return true;
+
+            return false;
         }
 
         #endregion Helper Methods
+
+        #region Static Properties
+
+        internal static IReadOnlyDictionary<AttributeQuoteKind, char[]> EscapeChars = new Dictionary<AttributeQuoteKind, char[]>()
+        {
+            { AttributeQuoteKind.Default, new char[2] { '"', '"' } },
+            { AttributeQuoteKind.SingleQuotes, new char[2] { '\'', '\'' } },
+            { AttributeQuoteKind.SquareBrackets, new char[2] { '[', ']' } },
+            { AttributeQuoteKind.Accents, new char[2] { '`', '`' } },
+        };
+
+        /// <summary>
+        /// Gets or sets the list of SQLite reserved keywords
+        /// </summary>
+        public static List<string> Keywords = new List<string>(new string[] 
+        {
+            "ABORT",
+            "ACTION",
+            "ADD",
+            "AFTER",
+            "ALL",
+            "ALTER",
+            "ANALYZE",
+            "AND",
+            "AS",
+            "ASC",
+            "ATTACH",
+            "AUTOINCREMENT",
+            "BEFORE",
+            "BEGIN",
+            "BETWEEN",
+            "BY",
+            "CASCADE",
+            "CASE",
+            "CAST",
+            "CHECK",
+            "COLLATE",
+            "COLUMN",
+            "COMMIT",
+            "CONFLICT",
+            "CONSTRAINT",
+            "CREATE",
+            "CROSS",
+            "CURRENT_DATE",
+            "CURRENT_TIME",
+            "CURRENT_TIMESTAMP",
+            "DATABASE",
+            "DEFAULT",
+            "DEFERRABLE",
+            "DEFERRED",
+            "DELETE",
+            "DESC",
+            "DETACH",
+            "DISTINCT",
+            "DROP",
+            "EACH",
+            "ELSE",
+            "END",
+            "ESCAPE",
+            "EXCEPT",
+            "EXCLUSIVE",
+            "EXISTS",
+            "EXPLAIN",
+            "FAIL",
+            "FOR",
+            "FOREIGN",
+            "FROM",
+            "FULL",
+            "GLOB",
+            "GROUP",
+            "HAVING",
+            "IF",
+            "IGNORE",
+            "IMMEDIATE",
+            "IN",
+            "INDEX",
+            "INDEXED",
+            "INITIALLY",
+            "INNER",
+            "INSERT",
+            "INSTEAD",
+            "INTERSECT",
+            "INTO",
+            "IS",
+            "ISNULL",
+            "JOIN",
+            "KEY",
+            "LEFT",
+            "LIKE",
+            "LIMIT",
+            "MATCH",
+            "NATURAL",
+            "NO",
+            "NOT",
+            "NOTNULL",
+            "NULL",
+            "OF",
+            "OFFSET",
+            "ON",
+            "OR",
+            "ORDER",
+            "OUTER",
+            "PLAN",
+            "PRAGMA",
+            "PRIMARY",
+            "QUERY",
+            "RAISE",
+            "RECURSIVE",
+            "REFERENCES",
+            "REGEXP",
+            "REINDEX",
+            "RELEASE",
+            "RENAME",
+            "REPLACE",
+            "RESTRICT",
+            "RIGHT",
+            "ROLLBACK",
+            "ROW",
+            "SAVEPOINT",
+            "SELECT",
+            "SET",
+            "TABLE",
+            "TEMP",
+            "TEMPORARY",
+            "THEN",
+            "TO",
+            "TRANSACTION",
+            "TRIGGER",
+            "UNION",
+            "UNIQUE",
+            "UPDATE",
+            "USING",
+            "VACUUM",
+            "VALUES",
+            "VIEW",
+            "VIRTUAL",
+            "WHEN",
+            "WHERE",
+            "WITH",
+            "WITHOUT",
+        });
+
+        #endregion
     }
 }

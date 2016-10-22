@@ -314,7 +314,7 @@ namespace CrossLite.QueryBuilder
                     parameters.Add(param2);
 
                     // Add statement
-                    return CreateExpressionString(FieldName, ComparisonOperator, param1, param2);
+                    return CreateExpressionString(param1, param2);
                 }
                 else if (ComparisonOperator == Comparison.In || ComparisonOperator == Comparison.NotIn)
                 {
@@ -331,7 +331,7 @@ namespace CrossLite.QueryBuilder
                     }
 
                     // Add statement
-                    return CreateExpressionString(FieldName, ComparisonOperator, parameters.Skip(offset).ToArray());
+                    return CreateExpressionString(parameters.Skip(offset).ToArray());
                 }
                 // --------------------------------------
                 // All Other Clauses
@@ -347,32 +347,32 @@ namespace CrossLite.QueryBuilder
                     parameters.Add(param);
 
                     // Add statement
-                   return CreateExpressionString(FieldName, ComparisonOperator, param);
+                   return CreateExpressionString(param);
                 }
             }
             else if (isLiteral)
             {
-                return CreateExpressionString(FieldName, ComparisonOperator, (SqlLiteral)Value);
+                return CreateExpressionString((SqlLiteral)Value);
             }
             else // Null and SqlLiteral values
             {
-                return CreateExpressionString(FieldName, ComparisonOperator, Value);
+                return CreateExpressionString();
             }
         }
 
         /// <summary>
         /// ToString override
         /// </summary>
-        public override string ToString() => CreateExpressionString(FieldName, ComparisonOperator, Value);
+        public override string ToString() => CreateExpressionString();
 
         /// <summary>
         /// Creates an SQL expression with the value of the <see cref="SQLiteParameter.ParameterName"/>. 
         /// </summary>
-        public static string CreateExpressionString(string fieldName, Comparison @operator, SQLiteParameter param)
+        protected string CreateExpressionString(SQLiteParameter param)
         {
             // Correct Name and define variables
-            fieldName = SQLiteContext.Escape(fieldName);
-            switch (@operator)
+            string fieldName = SQLiteContext.QuoteKeyword(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            switch (ComparisonOperator)
             {
                 case Comparison.Equals:
                     return $"{fieldName} = {param.ParameterName}";
@@ -397,18 +397,18 @@ namespace CrossLite.QueryBuilder
                 default:
                 case Comparison.Between:
                 case Comparison.NotBetween:
-                    throw new Exception($"The operator {nameof(@operator)} does not support just 1 SQLiteParameter.");
+                    throw new Exception($"The operator {nameof(ComparisonOperator)} does not support just 1 SQLiteParameter.");
             }
         }
 
         /// <summary>
         /// Creates an SQL expression with the values of the <see cref="SQLiteParameter.ParameterName"/>'s. 
         /// </summary>
-        public static string CreateExpressionString(string fieldName, Comparison @operator, params SQLiteParameter[] parameters)
+        protected string CreateExpressionString(params SQLiteParameter[] parameters)
         {
             // Correct Name and define variables
-            fieldName = SQLiteContext.Escape(fieldName);
-            switch (@operator)
+            string fieldName = SQLiteContext.QuoteKeyword(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            switch (ComparisonOperator)
             {
                 case Comparison.In:
                     return $"{fieldName} IN ({String.Join(", ", parameters.Select(x => x.ParameterName))})";
@@ -422,11 +422,113 @@ namespace CrossLite.QueryBuilder
 
                     // Build sql
                     StringBuilder builder = new StringBuilder(fieldName);
-                    builder.AppendIf(@operator == Comparison.NotBetween, " NOT BETWEEN ", " BETWEEN ");
+                    builder.AppendIf(ComparisonOperator == Comparison.NotBetween, " NOT BETWEEN ", " BETWEEN ");
                     builder.Append(parameters[0].ParameterName).Append(" AND ").Append(parameters[1].ParameterName);
                     return builder.ToString();
                 default:
-                    throw new Exception($"The operator {nameof(@operator)} does not support multiple SQLiteParameters.");
+                    throw new Exception($"The operator {nameof(ComparisonOperator)} does not support multiple SQLiteParameters.");
+            }
+        }
+
+        /// <summary>
+        /// Creates an SQL expression based on the literal value. The object value will not be escaped.
+        /// </summary>
+        protected string CreateExpressionString(SqlLiteral literal)
+        {
+            // Correct Name and define variables
+            string fieldName = SQLiteContext.QuoteKeyword(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            switch (ComparisonOperator)
+            {
+                case Comparison.Equals:
+                    return $"{fieldName} = {literal.Value}";
+                case Comparison.NotEqualTo:
+                    return $"{fieldName} != {literal.Value}";
+                case Comparison.Like:
+                    return $"{fieldName} LIKE {literal.Value}";
+                case Comparison.NotLike:
+                    return $"{fieldName} NOT LIKE {literal.Value}";
+                case Comparison.GreaterThan:
+                    return $"{fieldName} > {literal.Value}";
+                case Comparison.GreaterOrEquals:
+                    return $"{fieldName} >= {literal.Value}";
+                case Comparison.LessThan:
+                    return $"{fieldName} < {literal.Value}";
+                case Comparison.LessOrEquals:
+                    return $"{fieldName} <= {literal.Value}";
+                default:
+                    throw new Exception($"Cannot parse operator {nameof(ComparisonOperator)} from an SqlLiteral.");
+            }
+        }
+
+        /// <summary>
+        /// Creates an SQL expression based on the passed parameters. The object value will automatically
+        /// be escaped and properly quoted.
+        /// </summary>
+        /// <returns></returns>
+        protected string CreateExpressionString()
+        {
+            // Correct Name and define variables
+            string fieldName = SQLiteContext.QuoteKeyword(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+
+            // Only 2 options for null values
+            if (Value == null || Value == DBNull.Value)
+            {
+                switch (ComparisonOperator)
+                {
+                    default:
+                    case Comparison.Equals:
+                        return $"{fieldName} IS NULL";
+                    case Comparison.NotEqualTo:
+                        return $"{fieldName} IS NOT NULL";
+                }
+            }
+            else
+            {
+                // Create local vars
+                StringBuilder builder = new StringBuilder();
+                Array array;
+
+                // Build sql string based on the operator
+                switch (ComparisonOperator)
+                {
+                    default:
+                    case Comparison.Equals:
+                        return $"{fieldName} = {FormatSQLValue(Value)}";
+                    case Comparison.NotEqualTo:
+                        return $"{fieldName} != {FormatSQLValue(Value)}";
+                    case Comparison.Like:
+                        return $"{fieldName} LIKE {FormatSQLValue(Value)}";
+                    case Comparison.NotLike:
+                        return $"{fieldName} NOT LIKE {FormatSQLValue(Value)}";
+                    case Comparison.GreaterThan:
+                        return $"{fieldName} > {FormatSQLValue(Value)}";
+                    case Comparison.GreaterOrEquals:
+                        return $"{fieldName} >= {FormatSQLValue(Value)}";
+                    case Comparison.LessThan:
+                        return $"{fieldName} < {FormatSQLValue(Value)}";
+                    case Comparison.LessOrEquals:
+                        return $"{fieldName} <= {FormatSQLValue(Value)}";
+                    case Comparison.In:
+                    case Comparison.NotIn:
+                        array = (Array)Value;
+                        builder.Append(fieldName);
+                        builder.AppendIf(ComparisonOperator == Comparison.NotIn, " NOT IN (", " IN (");
+                        for (int i = 0; i < array.Length; i++)
+                        {
+                            builder.Append(FormatSQLValue(array.GetValue(i)));
+                            builder.AppendIf(i + 1 != array.Length, ',');
+                        }
+                        return builder.Append(')').ToString();
+                    case Comparison.Between:
+                    case Comparison.NotBetween:
+                        array = (Array)Value;
+                        builder.Append(fieldName);
+                        builder.AppendIf(ComparisonOperator == Comparison.NotBetween, " NOT BETWEEN ", " BETWEEN ");
+                        builder.Append(FormatSQLValue(array.GetValue(0)));
+                        builder.Append(" AND ");
+                        builder.Append(FormatSQLValue(array.GetValue(1)));
+                        return builder.ToString();
+                }
             }
         }
 
@@ -436,7 +538,6 @@ namespace CrossLite.QueryBuilder
         public static string CreateExpressionString(string fieldName, Comparison @operator, SqlLiteral literal)
         {
             // Correct Name and define variables
-            fieldName = SQLiteContext.Escape(fieldName);
             switch (@operator)
             {
                 case Comparison.Equals:
@@ -457,78 +558,6 @@ namespace CrossLite.QueryBuilder
                     return $"{fieldName} <= {literal.Value}";
                 default:
                     throw new Exception($"Cannot parse operator {nameof(@operator)} from an SqlLiteral.");
-            }
-        }
-
-        /// <summary>
-        /// Creates an SQL expression based on the passed parameters. The object value will automatically
-        /// be escaped and properly quoted.
-        /// </summary>
-        /// <returns></returns>
-        public static string CreateExpressionString(string fieldName, Comparison @operator, object value)
-        {
-            // Correct Name and define variables
-            fieldName = SQLiteContext.Escape(fieldName);
-
-            // Only 2 options for null values
-            if (value == null || value == DBNull.Value)
-            {
-                switch (@operator)
-                {
-                    default:
-                    case Comparison.Equals:
-                        return $"{fieldName} IS NULL";
-                    case Comparison.NotEqualTo:
-                        return $"{fieldName} IS NOT NULL";
-                }
-            }
-            else
-            {
-                // Create local vars
-                StringBuilder builder = new StringBuilder();
-                Array array;
-
-                // Build sql string based on the operator
-                switch (@operator)
-                {
-                    default:
-                    case Comparison.Equals:
-                        return $"{fieldName} = {FormatSQLValue(value)}";
-                    case Comparison.NotEqualTo:
-                        return $"{fieldName} != {FormatSQLValue(value)}";
-                    case Comparison.Like:
-                        return $"{fieldName} LIKE {FormatSQLValue(value)}";
-                    case Comparison.NotLike:
-                        return $"{fieldName} NOT LIKE {FormatSQLValue(value)}";
-                    case Comparison.GreaterThan:
-                        return $"{fieldName} > {FormatSQLValue(value)}";
-                    case Comparison.GreaterOrEquals:
-                        return $"{fieldName} >= {FormatSQLValue(value)}";
-                    case Comparison.LessThan:
-                        return $"{fieldName} < {FormatSQLValue(value)}";
-                    case Comparison.LessOrEquals:
-                        return $"{fieldName} <= {FormatSQLValue(value)}";
-                    case Comparison.In:
-                    case Comparison.NotIn:
-                        array = (Array)value;
-                        builder.Append(fieldName);
-                        builder.AppendIf(@operator == Comparison.NotIn, " NOT IN (", " IN (");
-                        for (int i = 0; i < array.Length; i++)
-                        {
-                            builder.Append(FormatSQLValue(array.GetValue(i)));
-                            builder.AppendIf(i + 1 != array.Length, ',');
-                        }
-                        return builder.Append(')').ToString();
-                    case Comparison.Between:
-                    case Comparison.NotBetween:
-                        array = (Array)value;
-                        builder.Append(fieldName);
-                        builder.AppendIf(@operator == Comparison.NotBetween, " NOT BETWEEN ", " BETWEEN ");
-                        builder.Append(FormatSQLValue(array.GetValue(0)));
-                        builder.Append(" AND ");
-                        builder.Append(FormatSQLValue(array.GetValue(1)));
-                        return builder.ToString();
-                }
             }
         }
 
