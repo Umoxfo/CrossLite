@@ -1,4 +1,6 @@
-﻿namespace CrossLite.QueryBuilder
+﻿using System.Collections.Generic;
+
+namespace CrossLite.QueryBuilder
 {
     /// <summary>
     /// This object represents a Join Statement for an SQL query
@@ -19,6 +21,11 @@
         /// Gets the <see cref="JoinExpression"/> for this clause
         /// </summary>
         public JoinExpression Expression { get; protected set; }
+
+        /// <summary>
+        /// Gets or sets the Expression Type
+        /// </summary>
+        internal JoinExpressionType ExpressionType { get; set; } = JoinExpressionType.None;
 
         /// <summary>
         /// Specifies which table we are joining INTO
@@ -84,7 +91,45 @@
         public JoinExpression On(string joiningColumn)
         {
             this.JoiningColumn = joiningColumn;
+            this.ExpressionType = JoinExpressionType.On;
             return this.Expression;
         }
+
+        /// <summary>
+        /// Specifies which columns to test for equality this table is joined.
+        /// </summary>
+        /// <remarks>Can be used instead of an ON clause in the JOIN operations that have an explicit join clause</remarks>
+        /// <param name="columnNames"></param>
+        /// <returns></returns>
+        public SelectQueryBuilder Using(params string[] columnNames)
+        {
+            this.JoiningColumn = string.Join(",", columnNames);
+            this.ExpressionType = JoinExpressionType.Using;
+            return Query;
+        }
+
+        /// <summary>
+        /// Selects all columns in the joining table
+        /// </summary>
+        public SelectQueryBuilder SelectAll() => Query?.SelectAll();
+
+        /// <summary>
+        /// Selects a specified column in the joining table.
+        /// </summary>
+        /// <param name="column">The Column name to select</param>
+        public SelectQueryBuilder SelectColumn(string column, string alias = null, bool escape = true)
+             => Query?.SelectColumn(column, alias, escape);
+
+        /// <summary>
+        /// Adds the specified column selectors in the joining table.
+        /// </summary>
+        /// <param name="columns">The column names to select</param>
+        public SelectQueryBuilder Select(params string[] columns) => Query?.Select(columns);
+
+        /// <summary>
+        /// Adds the specified column selectors in the joining table.
+        /// </summary>
+        /// <param name="columns">The column names to select</param>
+        public SelectQueryBuilder Select(IEnumerable<string> columns) => Query?.Select(columns);
     }
 }

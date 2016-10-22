@@ -109,8 +109,13 @@ namespace CrossLiteTester
             var query = new SelectQueryBuilder(context);
             query.From("table1")
                 .Select("col1", "col2", "plan")
-                .InnerJoin("table2").As("Alias2").On("col22").Equals("table1", "col1")
+                // Inner join a table
+                .InnerJoin("table2").As("t2").On("col22").Equals("table1", "col1")
                 .Select("col21", "col22")
+                // Cross Join another!
+                .CrossJoin("table3").As("t3").Using("col1")
+                .SelectAll()
+                // Finally, a where clause
                 .Where("col1").Equals("Yes").And("col22").GreaterThan(6).Or("plan").NotEqualTo(3);
             var queryString = query.BuildQuery();
 

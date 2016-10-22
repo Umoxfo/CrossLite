@@ -371,6 +371,19 @@ namespace CrossLite.QueryBuilder
         }
 
         /// <summary>
+        /// Creates a new Cross Join clause statement fot the current query object
+        /// </summary>
+        /// <param name="joinTable">The Joining Table name</param>
+        public JoinClause CrossJoin(string joinTable)
+        {
+            // Add clause to list
+            var clause = new JoinClause(this, JoinType.CrossJoin, joinTable);
+            Joins.Add(clause);
+            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
+            return clause;
+        }
+
+        /// <summary>
         /// Creates a new Outer Join clause statement fot the current query object
         /// </summary>
         /// <param name="joinTable">The Joining Table name</param>
@@ -391,19 +404,6 @@ namespace CrossLite.QueryBuilder
         {
             // Add clause to list
             var clause = new JoinClause(this, JoinType.LeftJoin, joinTable);
-            Joins.Add(clause);
-            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
-            return clause;
-        }
-
-        /// <summary>
-        /// Creates a new Right Join clause statement fot the current query object
-        /// </summary>
-        /// <param name="joinTable">The Joining Table name</param>
-        public JoinClause RightJoin(string joinTable)
-        {
-            // Add clause to list
-            var clause = new JoinClause(this, JoinType.RightJoin, joinTable);
             Joins.Add(clause);
             SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
             return clause;
@@ -764,31 +764,42 @@ namespace CrossLite.QueryBuilder
                     // Convert join type to string
                     switch (clause.JoinType)
                     {
+                        default:
                         case JoinType.InnerJoin:
                             query.Append(" JOIN ");
                             break;
                         case JoinType.OuterJoin:
-                            query.Append(" FULL OUTER JOIN ");
+                            query.Append(" OUTER JOIN ");
+                            break;
+                        case JoinType.CrossJoin:
+                            query.Append(" CROSS JOIN ");
                             break;
                         case JoinType.LeftJoin:
                             query.Append(" LEFT JOIN ");
-                            break;
-                        case JoinType.RightJoin:
-                            query.Append(" RIGHT JOIN ");
                             break;
                     }
 
                     // Append the join statement
                     string alias = Context.QuoteAttribute(TableAliases[clause.JoiningTable]);
-                    string fromT = TableAliases.ContainsKey(clause.FromTable) ? TableAliases[clause.FromTable] : clause.FromTable;
-                    query.Append($" {Context.QuoteAttribute(clause.JoiningTable)} AS {alias} ON ");
-                    query.Append(
-                        SqlExpression.CreateExpressionString(
-                            $"{alias}.{Context.QuoteAttribute(clause.JoiningColumn)}",
-                            clause.ComparisonOperator,
-                            new SqlLiteral(Context.QuoteAttribute($"{fromT}.{clause.FromColumn}"))
-                        )
-                    );
+                    query.Append($"{Context.QuoteAttribute(clause.JoiningTable)} AS {alias}");
+
+                    // Do we have an expression?
+                    if (clause.ExpressionType == JoinExpressionType.On)
+                    {
+                        string fromT = TableAliases.ContainsKey(clause.FromTable) ? TableAliases[clause.FromTable] : clause.FromTable;
+                        query.Append(" ON ");
+                        query.Append(
+                            SqlExpression.CreateExpressionString(
+                                $"{alias}.{Context.QuoteAttribute(clause.JoiningColumn)}",
+                                clause.ComparisonOperator,
+                                new SqlLiteral(Context.QuoteAttribute($"{fromT}.{clause.FromColumn}"))
+                            )
+                        );
+                    }
+                    else if (clause.ExpressionType == JoinExpressionType.Using)
+                    {
+                        query.AppendFormat(" USING({0})", String.Join(", ", clause.JoiningColumn.Split(',').Select(x => Context.QuoteAttribute(x))));
+                    }
                 }
             }
 
