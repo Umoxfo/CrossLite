@@ -107,10 +107,14 @@ namespace CrossLiteTester
 
             // Simple query test, using a reserved word for quote testing
             var query = new SelectQueryBuilder(context);
-            query.From("table1").Select("col1", "col2", "plan").Where("col1").Equals("Test").And("col2").GreaterThan(6).Or("plan").NotEqualTo(3);
+            query.From("table1")
+                .Select("col1", "col2", "plan")
+                .InnerJoin("table2").As("Alias2").On("col22").Equals("table1", "col1")
+                .Select("col21", "col22")
+                .Where("col1").Equals("Yes").And("col22").GreaterThan(6).Or("plan").NotEqualTo(3);
             var queryString = query.BuildQuery();
 
-            // Log query builder time (12ms for me on an i7-950)
+            // Log query builder time (14ms for me on an i7-950)
             long time = timer.ElapsedMilliseconds;
 
             Console.WriteLine("Query Builder Test:");

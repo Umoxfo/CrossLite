@@ -12,7 +12,11 @@ namespace CrossLite.QueryBuilder
     /// <remarks>
     /// All parameters in the WHERE and HAVING statements will be escaped by the underlaying
     /// DbCommand object when using the BuildCommand() method. The Execute*() methods are 
-    /// SQL injection safe and will properly escape the values in the query.
+    /// SQL injection safe and will properly escape attribute values in the query.
+    /// ----
+    /// This is not a forward only builder, meaning you can call the methods in this class
+    /// in any order, and will still get the same output.
+    /// ---
     /// </remarks>
     /// <example>
     /// 
@@ -33,23 +37,34 @@ namespace CrossLite.QueryBuilder
     ///     builder.From(tableName)
     ///         .Select("col1", "col2", "col3")
     ///             .As("id", "name", "is_admnin")
-    ///         .OrderBy("id", Sorting.Descending)
     ///         .Where("id").GreaterThan(1)
-    ///             .And("is_admin").Equals(true);
-    ///     builder.Limit = 50;
-    ///     builder.Offset = 10;
+    ///             .And("is_admin").Equals(true)
+    ///         .OrderBy("id", Sorting.Descending)
+    ///         .Skip(10)
+    ///         .Take(5);
     ///     SQLiteCommand command = builder.BuildCommand();
+    ///     
+    /// Advanced Select with a Join:
+    ///     var builder = new SelectQueryBuilder(context);
+    ///     builder.From(tableName, "table1")
+    ///         .Select("col1", "col2", "col3")
+    ///         .InnerJoin("table2").As("t2").On("col22").Equals("table1", "col1")
+    ///         .Select("col22", "col23") --> Call Select again to grab columns from the joined table
+    ///         .Where("col1").NotEqualTo(1)
+    ///             .And("col22").In(1, 3, 5, 7, 9)
+    ///         .OrderBy("col1", Sorting.Descending)
+    ///     string query = builder.BuildQuery();
+    ///     
     ///     
     /// </example>
     public class SelectQueryBuilder
     {
-        #region Internal Properties
-
-        protected SQLiteContext Context;
-
-        #endregion
-
         #region Public Properties
+
+        /// <summary>
+        /// The SQLiteContext attached to this builder
+        /// </summary>
+        public SQLiteContext Context { get; protected set; }
 
         /// <summary>
         /// Gets or Sets whether this Select statement will be distinct
@@ -69,6 +84,11 @@ namespace CrossLite.QueryBuilder
         /// Gets a sorted list of (TableName => SelectedColumns[ColumnName => ColumnData])
         /// </summary>
         public SortedList<string, SortedList<string, ResultColumn>> SelectedItems { get; set; }
+
+        /// <summary>
+        /// Gets a sorted list of (TableName => Alias)
+        /// </summary>
+        internal Dictionary<string, string> TableAliases { get; set; }
 
         /// <summary>
         /// The Where statement for this query
@@ -120,10 +140,11 @@ namespace CrossLite.QueryBuilder
         {
             this.Context = context;
             this.SelectedItems = new SortedList<string, SortedList<string, ResultColumn>>();
+            this.TableAliases = new Dictionary<string, string>();
 
             // Set qouting modes
-            this.WhereStatement = new WhereStatement(context);
-            this.HavingStatement = new WhereStatement(context);
+            this.WhereStatement = new WhereStatement(this);
+            this.HavingStatement = new WhereStatement(this);
         }
 
         #region Select Cols
@@ -144,10 +165,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Selects the count of rows in the SQL Statement being built
         /// </summary>
-        public SelectQueryBuilder SelectCount()
-        {
-            return SelectColumn("COUNT(1)", "count", false);
-        }
+        public SelectQueryBuilder SelectCount() => SelectColumn("COUNT(1)", "count", false);
 
         /// <summary>
         /// Selects the distinct count of rows in the SQL Statement being built
@@ -155,7 +173,7 @@ namespace CrossLite.QueryBuilder
         /// <param name="columnName">The Distinct column name</param>
         public SelectQueryBuilder SelectDistinctCount(string columnName)
         {
-            columnName = SQLiteContext.QuoteKeyword(columnName);
+            columnName = Context.QuoteAttribute(columnName);
             return SelectColumn($"COUNT(DISTINCT {columnName})", "count", false);
         }
 
@@ -181,6 +199,9 @@ namespace CrossLite.QueryBuilder
         /// <param name="columns">The column names to select</param>
         public SelectQueryBuilder Select(params string[] columns)
         {
+            // Make sure the array isnt empty...
+            if (columns.Length == 0) return this;
+
             // Ensure created with main table index
             if (SelectedItems.Count == 0)
                 SelectedItems.Add(Table ?? "", new SortedList<string, ResultColumn>());
@@ -200,6 +221,9 @@ namespace CrossLite.QueryBuilder
         /// <param name="columns">The column names to select</param>
         public SelectQueryBuilder Select(IEnumerable<string> columns)
         {
+            // Make sure the array isnt empty...
+            if (columns.Count() == 0) return this;
+
             // Ensure created with main table index
             if (SelectedItems.Count == 0)
                 SelectedItems.Add(Table ?? "", new SortedList<string, ResultColumn>());
@@ -222,7 +246,7 @@ namespace CrossLite.QueryBuilder
         /// Sets the table name to be used in this SQL Statement
         /// </summary>
         /// <param name="table">The table name</param>
-        public SelectQueryBuilder From(string table)
+        public SelectQueryBuilder From(string table, string alias = null)
         {
             // Ensure we are not null
             if (String.IsNullOrWhiteSpace(table))
@@ -234,6 +258,8 @@ namespace CrossLite.QueryBuilder
             else
                 SelectedItems.Keys[0] = table;
 
+            // Add alias
+            TableAliases[table] = alias;
             return this;
         }
 
@@ -332,75 +358,55 @@ namespace CrossLite.QueryBuilder
         #region Joins
 
         /// <summary>
-        /// Adds a join clause to the current query object
-        /// </summary>
-        /// <param name="newJoin"></param>
-        internal void AddJoin(JoinClause clause)
-        {
-            Joins.Add(clause);
-
-            // Create new table mapping for clause
-            SelectedItems[clause.JoiningTable] = new SortedList<string, ResultColumn>();
-        }
-
-        /// <summary>
         /// Creates a new Inner Join clause statement fot the current query object
         /// </summary>
         /// <param name="joinTable">The Joining Table name</param>
-        /// <param name="joinColumn">The Joining Table Comparison Field</param>
-        /// <param name="operator">the Comparison Operator used for the joining of thetwo tables</param>
-        /// <param name="onTable">The table name we are joining INTO</param>
-        /// <param name="onColumn">The From Table Comparison Field</param>
-        public SelectQueryBuilder InnerJoin(string joinTable, string joinColumn, Comparison @operator, string onTable, string onColumn)
+        public JoinClause InnerJoin(string joinTable)
         {
             // Add clause to list
-            AddJoin(new JoinClause(JoinType.InnerJoin, joinTable, joinColumn, @operator, onTable, onColumn));
-            return this;
+            var clause = new JoinClause(this, JoinType.InnerJoin, joinTable);
+            Joins.Add(clause);
+            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
+            return clause;
         }
 
         /// <summary>
         /// Creates a new Outer Join clause statement fot the current query object
         /// </summary>
         /// <param name="joinTable">The Joining Table name</param>
-        /// <param name="joinColumn">The Joining Table Comparison Field</param>
-        /// <param name="operator">the Comparison Operator used for the joining of thetwo tables</param>
-        /// <param name="onTable">The table name we are joining INTO</param>
-        /// <param name="onColumn">The From Table Comparison Field</param>
-        public SelectQueryBuilder OuterJoin(string joinTable, string joinColumn, Comparison @operator, string onTable, string onColumn)
+        public JoinClause OuterJoin(string joinTable)
         {
             // Add clause to list
-            AddJoin(new JoinClause(JoinType.OuterJoin, joinTable, joinColumn, @operator, onTable, onColumn));
-            return this;
+            var clause = new JoinClause(this, JoinType.OuterJoin, joinTable);
+            Joins.Add(clause);
+            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
+            return clause;
         }
 
         /// <summary>
         /// Creates a new Left Join clause statement fot the current query object
         /// </summary>
         /// <param name="joinTable">The Joining Table name</param>
-        /// <param name="joinColumn">The Joining Table Comparison Field</param>
-        /// <param name="operator">the Comparison Operator used for the joining of thetwo tables</param>
-        /// <param name="onTable">The table name we are joining INTO</param>
-        /// <param name="onColumn">The From Table Comparison Field</param>
-        public SelectQueryBuilder LeftJoin(string joinTable, string joinColumn, Comparison @operator, string onTable, string onColumn)
+        public JoinClause LeftJoin(string joinTable)
         {
             // Add clause to list
-            AddJoin(new JoinClause(JoinType.LeftJoin, joinTable, joinColumn, @operator, onTable, onColumn));
-            return this;
+            var clause = new JoinClause(this, JoinType.LeftJoin, joinTable);
+            Joins.Add(clause);
+            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
+            return clause;
         }
 
         /// <summary>
         /// Creates a new Right Join clause statement fot the current query object
         /// </summary>
         /// <param name="joinTable">The Joining Table name</param>
-        /// <param name="joinColumn">The Joining Table Comparison Field</param>
-        /// <param name="operator">the Comparison Operator used for the joining of thetwo tables</param>
-        /// <param name="onTable">The table name we are joining INTO</param>
-        /// <param name="onColumn">The From Table Comparison Field</param>
-        public SelectQueryBuilder RightJoin(string joinTable, string joinColumn, Comparison @operator, string onTable, string onColumn)
+        public JoinClause RightJoin(string joinTable)
         {
             // Add clause to list
-            AddJoin(new JoinClause(JoinType.RightJoin, joinTable, joinColumn, @operator, onTable, onColumn));
-            return this;
+            var clause = new JoinClause(this, JoinType.RightJoin, joinTable);
+            Joins.Add(clause);
+            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
+            return clause;
         }
 
         #endregion Joins
@@ -442,21 +448,40 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Adds an OrderBy clause to the current query object
         /// </summary>
-        /// <param name="Clause"></param>
-        public void OrderBy(OrderByClause Clause) => OrderByStatements.Add(Clause);
+        /// <param name="clause"></param>
+        public SelectQueryBuilder OrderBy(OrderByClause clause)
+        {
+            OrderByStatements.Add(clause);
+            return this;
+        }
 
         /// <summary>
         /// Creates and adds a new Oderby clause to the current query object
         /// </summary>
-        /// <param name="FieldName"></param>
-        /// <param name="Order"></param>
-        public void OrderBy(string FieldName, Sorting Order)
+        /// <param name="fieldName"></param>
+        /// <param name="order"></param>
+        public SelectQueryBuilder OrderBy(string fieldName, Sorting order)
         {
-            OrderByStatements.Add(new OrderByClause(FieldName, Order));
+            OrderByStatements.Add(new OrderByClause(fieldName, order));
+            return this;
         }
 
 
         #endregion Orderby
+
+        #region GroupBy
+
+        /// <summary>
+        /// Creates and adds a new Groupby clause to the current query object
+        /// </summary>
+        /// <param name="fieldName"></param>
+        public SelectQueryBuilder GroupBy(string fieldName)
+        {
+            GroupByColumns.Add(fieldName);
+            return this;
+        }
+
+        #endregion
 
         #region Having
 
@@ -608,6 +633,8 @@ namespace CrossLite.QueryBuilder
 
         #endregion
 
+        #region Limit / Offset
+
         /// <summary>
         /// Bypasses the specified amount of records (offset) in the result set.
         /// </summary>
@@ -635,6 +662,8 @@ namespace CrossLite.QueryBuilder
             // Allow chaining
             return this;
         }
+
+        #endregion
 
         /// <summary>
         /// Builds the query string with the current SQL Statement, and returns
@@ -672,12 +701,19 @@ namespace CrossLite.QueryBuilder
             {
                 int tableId = 1;
                 int colCount = table.Value.Count;
+                string nameOrAlias = $"t{tableId}";
                 tableCount--;
+
+                // Create alias if there is none
+                if (TableAliases.ContainsKey(table.Key) && !String.IsNullOrWhiteSpace(TableAliases[table.Key]))
+                    nameOrAlias = TableAliases[table.Key];
+                else
+                    TableAliases[table.Key] = nameOrAlias;
 
                 // Check if the user wants to select all columns
                 if (colCount == 0)
                 {
-                    query.AppendFormat("{0}.*", Context.QuoteAttribute($"t{tableId}"));
+                    query.AppendFormat("{0}.*", Context.QuoteAttribute(nameOrAlias));
                     query.AppendIf(tableCount > 0, ", ");
                 }
                 else
@@ -698,7 +734,7 @@ namespace CrossLite.QueryBuilder
                         if (!isAggregate)
                         {
                             query.AppendFormat("{0}.{1} AS {2}",
-                                Context.QuoteAttribute($"t{tableId}"),
+                                Context.QuoteAttribute(nameOrAlias),
                                 name,
                                 Context.QuoteAttribute(alias)
                             );
@@ -718,12 +754,11 @@ namespace CrossLite.QueryBuilder
             }
 
             // Append main Table
-            query.Append($" FROM {Context.QuoteAttribute(Table)} AS {Context.QuoteAttribute("t1")}");
+            query.Append($" FROM {Context.QuoteAttribute(Table)} AS {Context.QuoteAttribute(TableAliases[Table])}");
 
             // Append Joined tables
             if (Joins.Count > 0)
             {
-                int tableId = 2;
                 foreach (JoinClause clause in Joins)
                 {
                     // Convert join type to string
@@ -744,13 +779,14 @@ namespace CrossLite.QueryBuilder
                     }
 
                     // Append the join statement
-                    query.Append($" {Context.QuoteAttribute(clause.JoiningTable)} AS");
-                    query.Append($" {Context.QuoteAttribute($"t{tableId++}")} ON ");
+                    string alias = Context.QuoteAttribute(TableAliases[clause.JoiningTable]);
+                    string fromT = TableAliases.ContainsKey(clause.FromTable) ? TableAliases[clause.FromTable] : clause.FromTable;
+                    query.Append($" {Context.QuoteAttribute(clause.JoiningTable)} AS {alias} ON ");
                     query.Append(
                         SqlExpression.CreateExpressionString(
-                            Context.QuoteAttribute($"{clause.JoiningTable}.{clause.JoiningColumn}"),
+                            $"{alias}.{Context.QuoteAttribute(clause.JoiningColumn)}",
                             clause.ComparisonOperator,
-                            new SqlLiteral(Context.QuoteAttribute($"{clause.FromTable}.{clause.FromColumn}"))
+                            new SqlLiteral(Context.QuoteAttribute($"{fromT}.{clause.FromColumn}"))
                         )
                     );
                 }

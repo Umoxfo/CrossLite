@@ -44,6 +44,11 @@ namespace CrossLite.QueryBuilder
         public AttributeQuoteKind AttributeQuoteKind { get; set; } = SQLiteContext.DefaultAttributeQuoteKind;
 
         /// <summary>
+        /// The query builder this statement is attached to if one exists
+        /// </summary>
+        internal SelectQueryBuilder Query { get; set; }
+
+        /// <summary>
         /// Creates a new instance of <see cref="WhereStatement"/>
         /// </summary>
         public WhereStatement()
@@ -56,12 +61,17 @@ namespace CrossLite.QueryBuilder
         /// Creates a new instance of <see cref="WhereStatement"/> using the quoting settings
         /// from the supplied SQLiteContext
         /// </summary>
-        public WhereStatement(SQLiteContext context)
+        public WhereStatement(SQLiteContext context) : this()
         {
-            CurrentClause = new WhereClause();
-            Clauses = new List<WhereClause>() { CurrentClause };
             AttributeQuoteMode = context.AttributeQuoteMode;
             AttributeQuoteKind = context.AttributeQuoteKind;
+        }
+
+        public WhereStatement(SelectQueryBuilder query) : this()
+        {
+            this.Query = query;
+            AttributeQuoteMode = query.Context.AttributeQuoteMode;
+            AttributeQuoteKind = query.Context.AttributeQuoteKind;
         }
 
         /// <summary>
@@ -222,5 +232,43 @@ namespace CrossLite.QueryBuilder
 
             return builder.ToString();
         }
+
+        #region Re-Chaining Methods
+
+        /// <summary>
+        /// Bypasses the specified amount of records (offset) in the result set.
+        /// </summary>
+        /// <param name="">The offset in the query</param>
+        /// <returns>Returns the <see cref="SelectQueryBuilder"/> this instance is attached to, or null</returns>
+        public SelectQueryBuilder Skip(int count) => Query?.Skip(count);
+
+        /// <summary>
+        /// Specifies the maximum number of records to return in the query (limit)
+        /// </summary>
+        /// <param name="">The number of records to grab from the result set</param>
+        /// <returns>Returns the <see cref="SelectQueryBuilder"/> this instance is attached to, or null</returns>
+        public SelectQueryBuilder Take(int count) => Query?.Take(count);
+
+        /// <summary>
+        /// Adds an OrderBy clause to the current query object
+        /// </summary>
+        /// <param name="clause"></param>
+        /// /// <returns>Returns the <see cref="SelectQueryBuilder"/> this instance is attached to, or null</returns>
+        public SelectQueryBuilder OrderBy(OrderByClause clause) => Query?.OrderBy(clause);
+
+        /// <summary>
+        /// Creates and adds a new Oderby clause to the current query object
+        /// </summary>
+        /// <param name="fieldName"></param>
+        /// <param name="order"></param>
+        public SelectQueryBuilder OrderBy(string fieldName, Sorting order) => Query?.OrderBy(fieldName, order);
+
+        /// <summary>
+        /// Creates and adds a new Groupby clause to the current query object
+        /// </summary>
+        /// <param name="fieldName"></param>
+        public SelectQueryBuilder GroupBy(string fieldName) => Query?.GroupBy(fieldName);
+
+        #endregion
     }
 }
