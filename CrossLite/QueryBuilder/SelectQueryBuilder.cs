@@ -55,7 +55,6 @@ namespace CrossLite.QueryBuilder
     ///         .OrderBy("col1", Sorting.Descending)
     ///     string query = builder.BuildQuery();
     ///     
-    ///     
     /// </example>
     public class SelectQueryBuilder
     {
@@ -69,7 +68,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Gets or Sets whether this Select statement will be distinct
         /// </summary>
-        public bool Distinct { get; set; } =false;
+        public bool Distinct { get; set; } = false;
 
         /// <summary>
         /// Gets or Sets the selected table for this query

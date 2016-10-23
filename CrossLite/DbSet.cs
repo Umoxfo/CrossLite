@@ -109,7 +109,7 @@ namespace CrossLite
                 }
 
                 // Add attribute to the field list
-                builder.SetField(attribute.Key, info.GetValue(obj));
+                builder.Set(attribute.Key, info.GetValue(obj));
             }
 
             // Execute the SQL Command
@@ -165,7 +165,7 @@ namespace CrossLite
                     }
 
                     // Add attribute to the field list
-                    builder.SetField(attribute.Key, info.GetValue(obj));
+                    builder.Set(attribute.Key, info.GetValue(obj));
                 }
 
                 // Execute the SQL Command
@@ -241,7 +241,7 @@ namespace CrossLite
                 else
                 {
                     object value = attribute.Value.Property.GetValue(obj);
-                    builder.SetField(attribute.Key, value);
+                    builder.Set(attribute.Key, value);
                 }
             }
 

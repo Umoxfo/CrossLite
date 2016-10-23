@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Data.SQLite;
 using System.Text;
 
@@ -13,41 +12,26 @@ namespace CrossLite.QueryBuilder
     /// By using the BuildCommand() method, all parameters in the WHERE statement will be 
     /// escaped by the underlaying SQLiteCommand object, making the Execute() method SQL injection safe.
     /// </remarks>
-    class UpdateQueryBuilder
+    public class UpdateQueryBuilder : NonQueryBuilder
     {
-        #region Properties
-
-        /// <summary>
-        /// The table name to query
-        /// </summary>
-        public string Table { get; set; }
-
         /// <summary>
         /// A list of FieldValuePairs
         /// </summary>
-        protected Dictionary<string, FieldValuePair> Fields = new Dictionary<string, FieldValuePair>();
+        protected Dictionary<string, ColumnValuePair> Columns = new Dictionary<string, ColumnValuePair>();
 
         /// <summary>
         /// The Where statement for this query
         /// </summary>
-        public WhereStatement WhereStatement { get; set; } = new WhereStatement();
-
-        /// <summary>
-        /// The database driver, if using the "BuildCommand" method
-        /// </summary>
-        protected SQLiteContext Context;
-
-        #endregion Properties
-
-        #region Constructors
+        public WhereStatement WhereStatement { get; set; }
 
         /// <summary>
         /// Creates a new instance of UpdateQueryBuilder with the provided SQLite connection.
         /// </summary>
         /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
-        public UpdateQueryBuilder(SQLiteContext context)
+        public UpdateQueryBuilder(SQLiteContext context) : base(context)
         {
             this.Context = context;
+            this.WhereStatement = new WhereStatement(context);
         }
 
         /// <summary>
@@ -55,73 +39,68 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="table">The table name we are updating data in</param>
         /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
-        public UpdateQueryBuilder(string table, SQLiteContext context)
+        public UpdateQueryBuilder(string table, SQLiteContext context) : base(context)
         {
             this.Table = table;
             this.Context = context;
+            this.WhereStatement = new WhereStatement(context);
         }
 
-        #endregion Constructors
-
-        #region Fields
-
         /// <summary>
-        /// Sets a value for the specified field
+        /// Sets a value for the specified column
         /// </summary>
-        /// <param name="field">The column or field name</param>
+        /// <param name="column">The column or attribute name</param>
         /// <param name="value">The new value to update</param>
-        public void SetField(string field, object value)
-        {
-            this.SetField(field, value, ValueMode.Set);
-        }
+        public override void Set(string column, object value) => Set(column, value, ValueMode.Set);
 
         /// <summary>
-        /// Sets a value for the specified field
+        /// Sets a value for the specified column
         /// </summary>
-        /// <param name="field">The column or field name</param>
+        /// <param name="column">The column or attribute name</param>
         /// <param name="value">The new value to update</param>
         /// <param name="mode">Sets how the update value will be applied to the existing field value</param>
-        public void SetField(string field, object value, ValueMode mode)
+        public void Set(string column, object value, ValueMode mode)
         {
-            if (Fields.ContainsKey(field))
-                Fields[field] = new FieldValuePair(field, value, mode);
+            if (Columns.ContainsKey(column))
+                Columns[column] = new ColumnValuePair(column, value, mode);
             else
-                Fields.Add(field, new FieldValuePair(field, value, mode));
+                Columns.Add(column, new ColumnValuePair(column, value, mode));
         }
-
-        #endregion Fields
-
-        #region Where's
-
-        public WhereStatement Where(string field, Comparison @operator, object compareValue)
-        {
-            if (WhereStatement.InnerClauseOperator == LogicOperator.And)
-                return WhereStatement.And(field, @operator, compareValue);
-            else
-                return WhereStatement.Or(field, @operator, compareValue);
-        }
-
-        #endregion Where's
-
-        #region Set Methods
 
         /// <summary>
-        /// Sets the table name to update
+        /// Creates a where clause to add to the query's where statement
         /// </summary>
-        /// <param name="table">The name of the table to update</param>
-        public void SetTable(string table)
+        /// <param name="column">The column name</param>
+        /// <param name="operator">The Comaparison Operator to use</param>
+        /// <param name="value">The value, for the column name and comparison operator</param>
+        /// <returns></returns>
+        public WhereStatement Where(string column, Comparison @operator, object value)
         {
-            this.Table = table;
+            if (WhereStatement.InnerClauseOperator == LogicOperator.And)
+                return WhereStatement.And(column, @operator, value);
+            else
+                return WhereStatement.Or(column, @operator, value);
         }
 
-        #endregion Set Methods
+        /// <summary>
+        /// Creates a where clause to add to the query's where statement
+        /// </summary>
+        /// <param name="column">The column name</param>
+        /// <returns></returns>
+        public SqlExpression Where(string column)
+        {
+            if (WhereStatement.InnerClauseOperator == LogicOperator.And)
+                return WhereStatement.And(column);
+            else
+                return WhereStatement.Or(column);
+        }
 
         /// <summary>
         /// Builds the query string with the current SQL Statement, and returns
         /// the querystring. This method is NOT Sql Injection safe!
         /// </summary>
         /// <returns></returns>
-        public string BuildQuery() => BuildQuery(false) as String;
+        public override string BuildQuery() => BuildQuery(false) as String;
 
         /// <summary>
         /// Builds the query string with the current SQL Statement, and
@@ -129,7 +108,7 @@ namespace CrossLite.QueryBuilder
         /// are propery escaped, making this command SQL Injection safe.
         /// </summary>
         /// <returns></returns>
-        public SQLiteCommand BuildCommand() => BuildQuery(true) as SQLiteCommand;
+        public override SQLiteCommand BuildCommand() => BuildQuery(true) as SQLiteCommand;
 
         /// <summary>
         /// Builds the query string or DbCommand
@@ -147,45 +126,45 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("Table to update was not set.");
 
             // Make sure we have at least 1 field to update
-            if (Fields.Count == 0)
-                throw new Exception("No fields to update");
+            if (Columns.Count == 0)
+                throw new Exception("No column values to update");
 
             // Start Query
-            StringBuilder query = new StringBuilder($"UPDATE {SQLiteContext.QuoteKeyword(Table)} SET ");
-            List<SQLiteParameter> parameters = new List<SQLiteParameter>();
+            var query = new StringBuilder($"UPDATE {Context.QuoteAttribute(Table)} SET ", 256);
+            var parameters = new List<SQLiteParameter>();
 
             // Add Fields
             bool first = true;
-            foreach (KeyValuePair<string, FieldValuePair> field in Fields)
+            foreach (var column in Columns)
             {
                 // Append comma
                 if (!first) query.Append(", ");
                 else first = false;
 
                 // If using a command, Convert values to Parameters
-                if (buildCommand && field.Value.Value != null && field.Value.Value != DBNull.Value && !(field.Value.Value is SqlLiteral))
+                if (buildCommand && column.Value.Value != null && column.Value.Value != DBNull.Value && !(column.Value.Value is SqlLiteral))
                 {
                     // Create param for value
                     SQLiteParameter param = Context.CreateParameter();
                     param.ParameterName = "@P" + parameters.Count;
-                    param.Value = field.Value.Value;
+                    param.Value = column.Value.Value;
 
                     // Add Params to command
                     parameters.Add(param);
 
                     // Append Query
-                    if (field.Value.Mode == ValueMode.Set)
-                        query.AppendFormat("{0} = {1}", SQLiteContext.QuoteKeyword(field.Key), param.ParameterName);
+                    if (column.Value.Mode == ValueMode.Set)
+                        query.AppendFormat("{0} = {1}", Context.QuoteAttribute(column.Key), param.ParameterName);
                     else
-                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.QuoteKeyword(field.Key), GetSign(field.Value.Mode), param.ParameterName);
+                        query.AppendFormat("{0} = {0} {1} {2}", Context.QuoteAttribute(column.Key), GetSign(column.Value.Mode), param.ParameterName);
                 }
                 else
                 {
-                    if (field.Value.Mode == ValueMode.Set)
-                        query.AppendFormat("{0} = {1}", SQLiteContext.QuoteKeyword(field.Key), SqlExpression.FormatSQLValue(field.Value.Value));
+                    if (column.Value.Mode == ValueMode.Set)
+                        query.AppendFormat("{0} = {1}", Context.QuoteAttribute(column.Key), SqlExpression.FormatSQLValue(column.Value.Value));
                     else
-                        query.AppendFormat("{0} = {0} {1} {2}", SQLiteContext.QuoteKeyword(field.Key), 
-                            GetSign(field.Value.Mode), SqlExpression.FormatSQLValue(field.Value.Value));
+                        query.AppendFormat("{0} = {0} {1} {2}", Context.QuoteAttribute(column.Key), 
+                            GetSign(column.Value.Mode), SqlExpression.FormatSQLValue(column.Value.Value));
                 }
             }
 
@@ -209,7 +188,7 @@ namespace CrossLite.QueryBuilder
         /// Executes the command against the database. The database driver must be set!
         /// </summary>
         /// <returns></returns>
-        public int Execute()
+        public override int Execute()
         {
             using (SQLiteCommand command = BuildCommand())
                 return command.ExecuteNonQuery();
@@ -218,50 +197,35 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Returns the sign for the given value mode
         /// </summary>
-        /// <param name="Mode"></param>
+        /// <param name="mode"></param>
         /// <returns></returns>
-        protected string GetSign(ValueMode Mode)
+        protected string GetSign(ValueMode mode)
         {
-            string Sign = "";
-            switch (Mode)
+            switch (mode)
             {
-                case ValueMode.Add:
-                    Sign = "+";
-                    break;
-                case ValueMode.Divide:
-                    Sign = "/";
-                    break;
-                case ValueMode.Multiply:
-                    Sign = "*";
-                    break;
-                case ValueMode.Subtract:
-                    Sign = "-";
-                    break;
+                default:
+                case ValueMode.Set: return "=";
+                case ValueMode.Add: return "+";
+                case ValueMode.Divide: return "/";
+                case ValueMode.Multiply: return "*";
+                case ValueMode.Subtract: return "-";
             }
-            return Sign;
         }
 
         /// <summary>
-        /// Internal FieldValuePair object
+        /// Internal ColumnValuePair object
         /// </summary>
-        internal struct FieldValuePair
+        protected struct ColumnValuePair
         {
-            public string Field;
+            public string Name;
             public object Value;
             public ValueMode Mode;
 
-            public FieldValuePair(string Field, object Value)
+            public ColumnValuePair(string column, object value, ValueMode mode = ValueMode.Set)
             {
-                this.Field = Field;
-                this.Value = Value;
-                this.Mode = ValueMode.Set;
-            }
-
-            public FieldValuePair(string Field, object Value, ValueMode Mode)
-            {
-                this.Field = Field;
-                this.Value = Value;
-                this.Mode = Mode;
+                this.Name = column;
+                this.Value = value;
+                this.Mode = mode;
             }
         }
     }

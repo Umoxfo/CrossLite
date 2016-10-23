@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Data.SQLite;
 using System.Text;
 
@@ -14,76 +13,41 @@ namespace CrossLite.QueryBuilder
     /// be escaped by the underlaying SQLiteCommand object, making the Execute*() methods SQL injection 
     /// safe.
     /// </remarks>
-    class InsertQueryBuilder
+    public class InsertQueryBuilder : NonQueryBuilder
     {
-        #region Properties
-
-        /// <summary>
-        /// The table name to query
-        /// </summary>
-        public string Table;
-
         /// <summary>
         /// A list of FieldValuePairs
         /// </summary>
-        protected Dictionary<string, object> Fields = new Dictionary<string, object>();
-
-        /// <summary>
-        /// The database driver, if using the "BuildCommand" method
-        /// </summary>
-        protected SQLiteContext Context;
-
-        #endregion Properties
-
-        #region Constructors
+        protected Dictionary<string, object> Columns = new Dictionary<string, object>();
 
         /// <summary>
         /// Creates a new instance of InsertQueryBuilder with the provided SQLite connection.
         /// </summary>
         /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
-        public InsertQueryBuilder(SQLiteContext context)
-        {
-            this.Context = context;
-        }
+        public InsertQueryBuilder(SQLiteContext context) : base(context) { }
 
         /// <summary>
         /// Creates a new instance of InsertQueryBuilder with the provided SQLite connection.
         /// </summary>
         /// <param name="table">The table name we are inserting data into</param>
         /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
-        public InsertQueryBuilder(string table, SQLiteContext context)
+        public InsertQueryBuilder(string table, SQLiteContext context) : base(context)
         {
             this.Table = table;
-            this.Context = context;
         }
 
-        #endregion Constructors
-
         /// <summary>
-        /// Sets a value for the specified field
+        /// Sets a value for the specified column
         /// </summary>
-        /// <param name="field">The column or field name</param>
-        /// <param name="value">The value to insert</param>
-        public void SetField(string field, object value)
+        /// <param name="column">The column or attribute name</param>
+        /// <param name="value">The value of the column</param>
+        public override void Set(string column, object value)
         {
-            if (Fields.ContainsKey(field))
-                Fields[field] = value;
+            if (Columns.ContainsKey(column))
+                Columns[column] = value;
             else
-                Fields.Add(field, value);
+                Columns.Add(column, value);
         }
-
-        #region Set Methods
-
-        /// <summary>
-        /// Sets the table name to inesrt into
-        /// </summary>
-        /// <param name="table">The name of the table to insert into</param>
-        public void SetTable(string table)
-        {
-            this.Table = table;
-        }
-
-        #endregion Set Methods
 
         #region Query
 
@@ -92,7 +56,7 @@ namespace CrossLite.QueryBuilder
         /// the querystring. This method is NOT Sql Injection safe!
         /// </summary>
         /// <returns></returns>
-        public string BuildQuery() => BuildQuery(false) as String;
+        public override string BuildQuery() => BuildQuery(false) as String;
 
         /// <summary>
         /// Builds the query string with the current SQL Statement, and
@@ -100,7 +64,7 @@ namespace CrossLite.QueryBuilder
         /// are propery escaped, making this command SQL Injection safe.
         /// </summary>
         /// <returns></returns>
-        public SQLiteCommand BuildCommand() => BuildQuery(true) as SQLiteCommand;
+        public override SQLiteCommand BuildCommand() => BuildQuery(true) as SQLiteCommand;
 
         /// <summary>
         /// Builds the query string or DbCommand
@@ -118,17 +82,17 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("Table to insert into was not set.");
 
             // Make sure we have at least 1 field to update
-            if (Fields.Count == 0)
-                throw new Exception("No fields to insert");
+            if (Columns.Count == 0)
+                throw new Exception("No column values specified to insert");
 
             // Start Query
-            StringBuilder query = new StringBuilder($"INSERT INTO {SQLiteContext.QuoteKeyword(Table)} (");
+            StringBuilder query = new StringBuilder($"INSERT INTO {Context.QuoteAttribute(Table)} (", 256);
             StringBuilder values = new StringBuilder();
             List<SQLiteParameter> parameters = new List<SQLiteParameter>();
             bool first = true;
 
             // Add fields and values
-            foreach (KeyValuePair<string, object> Item in Fields)
+            foreach (KeyValuePair<string, object> Item in Columns)
             {
                 // Append comma
                 if (!first)
@@ -151,12 +115,12 @@ namespace CrossLite.QueryBuilder
                     parameters.Add(Param);
 
                     // Append query's
-                    query.Append(SQLiteContext.QuoteKeyword(Item.Key));
+                    query.Append(Context.QuoteAttribute(Item.Key));
                     values.Append(Param.ParameterName);
                 }
                 else
                 {
-                    query.Append(Item.Key);
+                    query.Append(Context.QuoteAttribute(Item.Key));
                     values.Append(SqlExpression.FormatSQLValue(Item.Value));
                 }
             }
@@ -181,7 +145,7 @@ namespace CrossLite.QueryBuilder
         /// in the contructor. All WHERE paramenters are propery escaped, 
         /// making this command SQL Injection safe.
         /// </summary>
-        public int Execute()
+        public override int Execute()
         {
             using (SQLiteCommand command = BuildCommand())
                 return command.ExecuteNonQuery();
