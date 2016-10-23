@@ -196,7 +196,7 @@ namespace CrossLite
         public bool Remove(TEntity obj)
         {
             // Create a WHERE statement
-            WhereStatement statement = new WhereStatement();
+            WhereStatement statement = new WhereStatement(Context);
 
             // build the where statement, using primary keys
             foreach (string keyName in EntityTable.PrimaryKeys)
@@ -208,7 +208,7 @@ namespace CrossLite
             // Build the SQL query
             List<SQLiteParameter> parameters;
             string sql = String.Format("DELETE FROM {0} WHERE {1}",
-                SQLiteContext.QuoteKeyword(EntityTable.TableName),
+                Context.QuoteAttribute(EntityTable.TableName),
                 statement.BuildStatement(out parameters)
             );
 
@@ -276,8 +276,7 @@ namespace CrossLite
         {
             // Begin a new Select Query
             SelectQueryBuilder query = new SelectQueryBuilder(Context);
-            query.From(EntityTable.TableName).Select(EntityTable.Columns.Keys);
-            query.Limit = 1;
+            query.From(EntityTable.TableName).Select(EntityTable.Columns.Keys).Take(1);
 
             // Grab the primary keys
             foreach (string attrName in EntityTable.PrimaryKeys)
@@ -329,7 +328,7 @@ namespace CrossLite
         public bool Contains(TEntity obj)
         {
             // Create a WHERE statement
-            WhereStatement where = new WhereStatement();
+            WhereStatement where = new WhereStatement(Context);
 
             // build the where statement, using primary keys
             foreach (string keyName in EntityTable.PrimaryKeys)
@@ -349,7 +348,7 @@ namespace CrossLite
             // Build the SQL query
             List<SQLiteParameter> parameters;
             string sql = String.Format("SELECT EXISTS(SELECT 1 FROM {0} WHERE {1} LIMIT 1);",
-                SQLiteContext.QuoteKeyword(tableName),
+                Context.QuoteAttribute(tableName),
                 where.BuildStatement(out parameters)
             );
 
@@ -367,7 +366,8 @@ namespace CrossLite
         public void Clear()
         {
             // Build the SQL query
-            string sql = $"DELETE FROM `{EntityTable.TableName}`";
+            string table = Context.QuoteAttribute(EntityTable.TableName);
+            string sql = $"DELETE FROM {table}";
             using (SQLiteCommand command = Context.CreateCommand(sql))
                 command.ExecuteNonQuery();
         }
