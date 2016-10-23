@@ -25,18 +25,31 @@ namespace CrossLiteTester
             using (TestContext db = new TestContext(builder.ToString()))
             using (var trans = db.BeginTransaction())
             {
+                int i = 1;
+
                 // Run test 1
                 RunQueryBuilderTest(db);
+
+                Console.WriteLine();
+                Console.Write("Droping Tables...");
 
                 // Drop tables
                 db.DropTable<UserPrivilege>();
                 db.DropTable<Privilege>();
                 db.DropTable<Account>();
 
+                Console.WriteLine("Success!");
+                Console.WriteLine();
+                Console.Write("Adding Tables to Database...");
+
                 // Create new tables
                 db.CreateTable<Account>();
                 db.CreateTable<Privilege>();
                 db.CreateTable<UserPrivilege>();
+
+                Console.WriteLine("Success!");
+                Console.WriteLine();
+                Console.Write("Adding dummy data...");
 
                 // Insert some dummy data
                 Account entity = new Account() { Name = "Steve" };
@@ -52,6 +65,10 @@ namespace CrossLiteTester
                 };
                 db.UserPrivileges.Add(up);
 
+                Console.WriteLine("Success!");
+                Console.WriteLine();
+                Console.Write("Testing readers...");
+
                 // Test fetching for Fkeys
                 foreach (UserPrivilege priv in entity.Privilages)
                 {
@@ -60,22 +77,36 @@ namespace CrossLiteTester
 
                 // Check if entity inserted correctly
                 if (!db.Users.Contains(entity))
-                    MessageBox.Show(entity.Name + " does not exist!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Console.WriteLine("Failed!!! " + entity.Name + " does not exist!");
 
                 // More dummy data
                 try
                 {
                     entity = new Account() { Name = "Sally" };
                     db.Users.Add(entity);
-                    var results = db.Users.Select(x => x).Where(x => x.Id == 1).ToString();
+                    var result1 = db.Users.Select(x => x).Where(x => x.Id == 2).ToList();
 
                     // Query builder testing
                     var query = new SelectQueryBuilder(db);
                     query.From("test").SelectAll().Where("Id").Between(1, 2);
-                    var res = query.ExecuteQuery<Account>().ToList();
+                    var result2 = query.ExecuteQuery<Account>().ToList();
+
+                    Console.WriteLine($"Success!");
+                    Console.WriteLine();
+                    Console.WriteLine("Account ID #1 is: " + result2[0].Name);
+                    Console.WriteLine("Account ID #2 is: " + result1[0].Name);
+                    Console.WriteLine();
+                    Console.Write("Fetching data count...");
+
+                    query = new SelectQueryBuilder(db);
+                    int num = query.From("test").SelectCount().ExecuteScalar<int>();
+                    Console.WriteLine("Success!");
+                    Console.WriteLine($"There are {num} Records!");
                 }
                 catch (Exception e)
                 {
+                    Console.WriteLine("Failed!!!");
+                    Console.WriteLine(e.Message);
                     var exp = e;
                 }
 
@@ -114,7 +145,7 @@ namespace CrossLiteTester
                 .Select("col21", "col22")
                 // Cross Join another!
                 .CrossJoin("table3").As("t3").Using("col1")
-                .SelectAll()
+                .SelectCount()
                 // Finally, a where clause
                 .Where("col1").Equals("Yes").And("col22").GreaterThan(6).Or("plan").NotEqualTo(3);
             var queryString = query.BuildQuery();
@@ -123,8 +154,9 @@ namespace CrossLiteTester
             long time = timer.ElapsedMilliseconds;
 
             Console.WriteLine("Query Builder Test:");
+            Console.WriteLine();
             Console.WriteLine(queryString);
-            Console.WriteLine($"Elapsed In: {time}ms");
+            Console.WriteLine($"Query generated in {time}ms");
         }
     }
 }

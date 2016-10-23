@@ -83,7 +83,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Gets a sorted list of (TableName => SelectedColumns[ColumnName => ColumnData])
         /// </summary>
-        public SortedList<string, SortedList<string, ResultColumn>> SelectedItems { get; set; }
+        public SortedList<string, SortedList<string, ColumnSelector>> SelectedItems { get; set; }
 
         /// <summary>
         /// Gets a sorted list of (TableName => Alias)
@@ -139,7 +139,7 @@ namespace CrossLite.QueryBuilder
         public SelectQueryBuilder(SQLiteContext context)
         {
             this.Context = context;
-            this.SelectedItems = new SortedList<string, SortedList<string, ResultColumn>>();
+            this.SelectedItems = new SortedList<string, SortedList<string, ColumnSelector>>();
             this.TableAliases = new Dictionary<string, string>();
 
             // Set qouting modes
@@ -155,26 +155,11 @@ namespace CrossLite.QueryBuilder
         public SelectQueryBuilder SelectAll()
         {
             if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table ?? "", new SortedList<string, ResultColumn>());
+                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
             else
                 SelectedItems.Values[SelectedItems.Count - 1].Clear();
             
             return this;
-        }
-
-        /// <summary>
-        /// Selects the count of rows in the SQL Statement being built
-        /// </summary>
-        public SelectQueryBuilder SelectCount() => SelectColumn("COUNT(1)", "count", false);
-
-        /// <summary>
-        /// Selects the distinct count of rows in the SQL Statement being built
-        /// </summary>
-        /// <param name="columnName">The Distinct column name</param>
-        public SelectQueryBuilder SelectDistinctCount(string columnName)
-        {
-            columnName = Context.QuoteAttribute(columnName);
-            return SelectColumn($"COUNT(DISTINCT {columnName})", "count", false);
         }
 
         /// <summary>
@@ -186,10 +171,10 @@ namespace CrossLite.QueryBuilder
         {
             // Ensure created with main table index
             if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table ?? "", new SortedList<string, ResultColumn>());
+                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
 
             // Add item to list
-            SelectedItems.Values[SelectedItems.Count - 1][column] = new ResultColumn(column, alias, escape);
+            SelectedItems.Values[SelectedItems.Count - 1][column] = new ColumnSelector(column, alias, escape);
             return this;
         }
 
@@ -204,12 +189,12 @@ namespace CrossLite.QueryBuilder
 
             // Ensure created with main table index
             if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table ?? "", new SortedList<string, ResultColumn>());
+                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
 
             // Add columns to the list
             var table = SelectedItems.Values[SelectedItems.Count - 1];
             foreach (string col in columns)
-                table[col] = new ResultColumn(col);
+                table[col] = new ColumnSelector(col);
 
             // Allow chaining
             return this;
@@ -226,18 +211,115 @@ namespace CrossLite.QueryBuilder
 
             // Ensure created with main table index
             if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table ?? "", new SortedList<string, ResultColumn>());
+                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
 
             // Add columns to the list
             var table = SelectedItems.Values[SelectedItems.Count - 1];
             foreach (string col in columns)
-                table[col] = new ResultColumn(col);
+                table[col] = new ColumnSelector(col);
 
             // Allow chaining
             return this;
         }
 
         #endregion Select Cols
+
+        #region Aggregates
+
+        /// <summary>
+        /// Adds an aggregate selection to the current table selector
+        /// </summary>
+        /// <param name="column">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        /// <param name="type">The aggregate type</param>
+        /// <returns></returns>
+        internal SelectQueryBuilder Aggregate(string column, string alias, AggregateFunction type)
+        {
+            // Ensure created with main table index
+            if (SelectedItems.Count == 0)
+                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
+
+            // Ensure the column name is correct
+            if (String.IsNullOrWhiteSpace(column))
+            {
+                // Only count can be null or empty
+                if (type != AggregateFunction.Count)
+                {
+                    string name = Enum.GetName(typeof(AggregateFunction), type).ToUpperInvariant();
+                    throw new ArgumentException("No column name specified for the aggregate '{name}'", "type");
+                }
+                else
+                {
+                    // Just wildcard the name
+                    column = "*";
+                }
+            }
+            else if (type != AggregateFunction.Count && column.Equals("*"))
+            {
+                string name = Enum.GetName(typeof(AggregateFunction), type).ToUpperInvariant();
+                throw new ArgumentException($"Cannot use a wildcard in place of an column name for the aggregate '{name}'", "type");
+            }
+
+            // Get column key and Add item to list
+            string key = String.Format(ColumnSelector.GetAggregateString(type), column);
+            SelectedItems.Values[SelectedItems.Count - 1][key] = new ColumnSelector(column, alias, true)
+            {
+                Aggregate = type
+            };
+            return this;
+        }
+
+        /// <summary>
+        /// The count(X) function returns a count of the number of times that X is not NULL in a group. 
+        /// The count(*) function (with no arguments) returns the total number of rows in the group.
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectCount(string columnName = "*", string alias = null)
+            => Aggregate(columnName, alias, AggregateFunction.Count);
+
+        /// <summary>
+        /// The count(distinct X) function returns the number of distinct values of column X instead of the 
+        /// total number of non-null values in column X.
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectDistinctCount(string columnName, string alias = null)
+            => Aggregate(columnName, alias, AggregateFunction.DistinctCount);
+
+        /// <summary>
+        /// The avg() function returns the average value of all non-NULL X within a group
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectAverage(string columnName, string alias = null)
+            => Aggregate(columnName, alias, AggregateFunction.Average);
+
+        /// <summary>
+        /// The min() aggregate function returns the minimum non-NULL value of all values in the group
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectMin(string columnName, string alias = null)
+            => Aggregate(columnName, alias, AggregateFunction.Min);
+
+        /// <summary>
+        /// The max() aggregate function returns the maximum value of all values in the group
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectMax(string columnName, string alias = null)
+            => Aggregate(columnName, alias, AggregateFunction.Max);
+
+        /// <summary>
+        /// The sum() aggregate functions return sum of all non-NULL values in the group.
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectSum(string columnName, string alias = null)
+            => Aggregate(columnName, alias, AggregateFunction.Sum);
+
+        #endregion
 
         #region From Table
 
@@ -254,7 +336,7 @@ namespace CrossLite.QueryBuilder
 
             // Ensure created with main table index
             if (SelectedItems.Count == 0)
-                SelectedItems.Add(table, new SortedList<string, ResultColumn>());
+                SelectedItems.Add(table, new SortedList<string, ColumnSelector>());
             else
                 SelectedItems.Keys[0] = table;
 
@@ -346,7 +428,7 @@ namespace CrossLite.QueryBuilder
             else
             {
                 // No escape on all
-                foreach (ResultColumn col in cols.Values)
+                foreach (ColumnSelector col in cols.Values)
                     col.Escape = false;
             }
 
@@ -366,7 +448,7 @@ namespace CrossLite.QueryBuilder
             // Add clause to list
             var clause = new JoinClause(this, JoinType.InnerJoin, joinTable);
             Joins.Add(clause);
-            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
+            SelectedItems.Add(joinTable, new SortedList<string, ColumnSelector>());
             return clause;
         }
 
@@ -379,7 +461,7 @@ namespace CrossLite.QueryBuilder
             // Add clause to list
             var clause = new JoinClause(this, JoinType.CrossJoin, joinTable);
             Joins.Add(clause);
-            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
+            SelectedItems.Add(joinTable, new SortedList<string, ColumnSelector>());
             return clause;
         }
 
@@ -392,7 +474,7 @@ namespace CrossLite.QueryBuilder
             // Add clause to list
             var clause = new JoinClause(this, JoinType.OuterJoin, joinTable);
             Joins.Add(clause);
-            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
+            SelectedItems.Add(joinTable, new SortedList<string, ColumnSelector>());
             return clause;
         }
 
@@ -405,7 +487,7 @@ namespace CrossLite.QueryBuilder
             // Add clause to list
             var clause = new JoinClause(this, JoinType.LeftJoin, joinTable);
             Joins.Add(clause);
-            SelectedItems.Add(joinTable, new SortedList<string, ResultColumn>());
+            SelectedItems.Add(joinTable, new SortedList<string, ColumnSelector>());
             return clause;
         }
 
@@ -687,6 +769,10 @@ namespace CrossLite.QueryBuilder
         /// <returns></returns>
         protected object BuildQuery(bool buildCommand)
         {
+            // Define local variables
+            int tableId = 1;
+            int tableCount = SelectedItems.Count;
+
             // Make sure we have a table name
             if (SelectedItems.Count == 0 || String.IsNullOrWhiteSpace(SelectedItems.Keys[0]))
                 throw new Exception("No tables were specified for this query.");
@@ -696,64 +782,41 @@ namespace CrossLite.QueryBuilder
             query.AppendIf(Distinct, "DISTINCT ");
 
             // Append columns from each table
-            int tableCount = SelectedItems.Count;
             foreach (var table in SelectedItems)
             {
-                int tableId = 1;
+                // Define local variables
                 int colCount = table.Value.Count;
-                string nameOrAlias = $"t{tableId}";
+                string tableName = table.Key;
+                string tableAlias = $"t{tableId++}";
                 tableCount--;
 
-                // Create alias if there is none
-                if (TableAliases.ContainsKey(table.Key) && !String.IsNullOrWhiteSpace(TableAliases[table.Key]))
-                    nameOrAlias = TableAliases[table.Key];
+                // Create alias for this table if there is none
+                if (TableAliases.ContainsKey(tableName) && !String.IsNullOrWhiteSpace(TableAliases[tableName]))
+                    tableAlias = TableAliases[table.Key];
                 else
-                    TableAliases[table.Key] = nameOrAlias;
+                    TableAliases[tableName] = tableAlias;
 
                 // Check if the user wants to select all columns
                 if (colCount == 0)
                 {
-                    query.AppendFormat("{0}.*", Context.QuoteAttribute(nameOrAlias));
+                    query.AppendFormat("{0}.*", Context.QuoteAttribute(tableAlias));
                     query.AppendIf(tableCount > 0, ", ");
                 }
                 else
                 {
                     // Add each result selector to the query
-                    foreach (ResultColumn column in table.Value.Values)
+                    foreach (ColumnSelector column in table.Value.Values)
                     {
-                        string name = column.Name;
-                        string alias = column.Alias ?? column.Name;
-                        bool isAggregate = name.Contains("(");
-
-                        // Do escaping unless the result is an aggregate funtion,
-                        // or the user specifies otherwise
-                        if (!isAggregate && column.Escape)
-                            name = Context.QuoteAttribute(name);
-
-                        // Do NOT apply table name prefix on functions
-                        if (!isAggregate)
-                        {
-                            query.AppendFormat("{0}.{1} AS {2}",
-                                Context.QuoteAttribute(nameOrAlias),
-                                name,
-                                Context.QuoteAttribute(alias)
-                            );
-                        }
-                        else
-                        {
-                            query.AppendFormat("{0} AS {1}", name, Context.QuoteAttribute(alias));
-                        }
+                        // Use the internal method to append the column string to our query
+                        column.AppendToQuery(query, Context, tableAlias);
 
                         // If we have more results to select, append Comma
                         query.AppendIf(--colCount > 0 || tableCount > 0, ", ");
                     }
                 }
-
-                // move counters
-                tableId++;
             }
 
-            // Append main Table
+            // === Append main Table === //
             query.Append($" FROM {Context.QuoteAttribute(Table)} AS {Context.QuoteAttribute(TableAliases[Table])}");
 
             // Append Joined tables
@@ -798,7 +861,8 @@ namespace CrossLite.QueryBuilder
                     }
                     else if (clause.ExpressionType == JoinExpressionType.Using)
                     {
-                        query.AppendFormat(" USING({0})", String.Join(", ", clause.JoiningColumn.Split(',').Select(x => Context.QuoteAttribute(x))));
+                        var parts = clause.JoiningColumn.Split(',');
+                        query.AppendFormat(" USING({0})", String.Join(", ", parts.Select(x => Context.QuoteAttribute(x))));
                     }
                 }
             }

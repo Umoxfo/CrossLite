@@ -131,5 +131,55 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="columns">The column names to select</param>
         public SelectQueryBuilder Select(IEnumerable<string> columns) => Query?.Select(columns);
+
+        /// <summary>
+        /// The count(X) function returns a count of the number of times that X is not NULL in a group. 
+        /// The count(*) function (with no arguments) returns the total number of rows in the group.
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectCount(string columnName = "*", string alias = null)
+            => Query?.Aggregate(columnName, alias, AggregateFunction.Count);
+
+        /// <summary>
+        /// The count(distinct X) function returns the number of distinct values of column X instead of the 
+        /// total number of non-null values in column X.
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectDistinctCount(string columnName, string alias = null)
+            => Query?.Aggregate(columnName, alias, AggregateFunction.DistinctCount);
+
+        /// <summary>
+        /// The avg() function returns the average value of all non-NULL X within a group
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectAverage(string columnName, string alias = null)
+            => Query?.Aggregate(columnName, alias, AggregateFunction.Average);
+
+        /// <summary>
+        /// The min() aggregate function returns the minimum non-NULL value of all values in the group
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectMin(string columnName, string alias = null)
+            => Query?.Aggregate(columnName, alias, AggregateFunction.Min);
+
+        /// <summary>
+        /// The max() aggregate function returns the maximum value of all values in the group
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectMax(string columnName, string alias = null)
+            => Query?.Aggregate(columnName, alias, AggregateFunction.Max);
+
+        /// <summary>
+        /// The sum() aggregate functions return sum of all non-NULL values in the group.
+        /// </summary>
+        /// <param name="columnName">The column name to perform the aggregate on</param>
+        /// <param name="alias">The return alias of the aggregate result, if any.</param>
+        public SelectQueryBuilder SelectSum(string columnName, string alias = null)
+            => Query?.Aggregate(columnName, alias, AggregateFunction.Sum);
     }
 }
