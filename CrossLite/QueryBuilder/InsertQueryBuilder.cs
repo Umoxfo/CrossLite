@@ -41,12 +41,14 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="column">The column or attribute name</param>
         /// <param name="value">The value of the column</param>
-        public override void Set(string column, object value)
+        public InsertQueryBuilder Set(string column, object value)
         {
             if (Columns.ContainsKey(column))
                 Columns[column] = value;
             else
                 Columns.Add(column, value);
+
+            return this;
         }
 
         #region Query

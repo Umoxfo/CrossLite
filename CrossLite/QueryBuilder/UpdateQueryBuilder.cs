@@ -51,7 +51,7 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="column">The column or attribute name</param>
         /// <param name="value">The new value to update</param>
-        public override void Set(string column, object value) => Set(column, value, ValueMode.Set);
+        public UpdateQueryBuilder Set(string column, object value) => Set(column, value, ValueMode.Set);
 
         /// <summary>
         /// Sets a value for the specified column
@@ -59,13 +59,57 @@ namespace CrossLite.QueryBuilder
         /// <param name="column">The column or attribute name</param>
         /// <param name="value">The new value to update</param>
         /// <param name="mode">Sets how the update value will be applied to the existing field value</param>
-        public void Set(string column, object value, ValueMode mode)
+        internal UpdateQueryBuilder Set(string column, object value, ValueMode mode)
         {
+            // Check parameter
+            if (String.IsNullOrWhiteSpace(column))
+                throw new ArgumentNullException("column");
+
+            // Add column to list
             if (Columns.ContainsKey(column))
                 Columns[column] = new ColumnValuePair(column, value, mode);
             else
                 Columns.Add(column, new ColumnValuePair(column, value, mode));
+
+            // Return this instance for chaining
+            return this;
         }
+
+        /// <summary>
+        /// Increments the current value in the database on the specified column by the specified value.
+        /// </summary>
+        /// <typeparam name="T">A numeric type to increment the value by</typeparam>
+        /// <param name="column">The column or attribute name</param>
+        /// <param name="value">The value to increment by</param>
+        public UpdateQueryBuilder Increment<T>(string column, T value) where T : struct
+            => Set(column, value, ValueMode.Add);
+
+        /// <summary>
+        /// Decrements the current value in the database on the specified column by the specified value.
+        /// </summary>
+        /// <typeparam name="T">A numeric type to decrement the value by</typeparam>
+        /// <param name="column">The column or attribute name</param>
+        /// <param name="value">The value to decrement by</param>
+        public UpdateQueryBuilder Decrement<T>(string column, T value) where T : struct
+            => Set(column, value, ValueMode.Subtract);
+
+        /// <summary>
+        /// Divides the current value in the database on the specified column by the specified value.
+        /// </summary>
+        /// <typeparam name="T">A numeric type to divide the value by</typeparam>
+        /// <param name="column">The column or attribute name</param>
+        /// <param name="value">The value to divide by</param>
+        public UpdateQueryBuilder Divide<T>(string column, T value) where T : struct
+            => Set(column, value, ValueMode.Divide);
+
+        /// <summary>
+        /// Multiplies the current value in the database on the specified column by the specified value.
+        /// </summary>
+        /// <typeparam name="T">A numeric type to multiply the value by</typeparam>
+        /// <param name="column">The column or attribute name</param>
+        /// <param name="value">The value to multiply by</param>
+        public UpdateQueryBuilder Multiply<T>(string column, T value) where T : struct
+            => Set(column, value, ValueMode.Multiply);
 
         /// <summary>
         /// Creates a where clause to add to the query's where statement

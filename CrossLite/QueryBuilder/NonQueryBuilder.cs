@@ -27,13 +27,6 @@ namespace CrossLite.QueryBuilder
         }
 
         /// <summary>
-        /// Sets a value for the specified column
-        /// </summary>
-        /// <param name="column">The column or attribute name</param>
-        /// <param name="value">The value of the column</param>
-        public abstract void Set(string column, object value);
-
-        /// <summary>
         /// Sets the table name we are working with
         /// </summary>
         /// <param name="table">The name of the table</param>
