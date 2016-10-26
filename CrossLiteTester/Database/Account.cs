@@ -14,9 +14,21 @@ namespace CrossLiteTester
         public string Name { get; set; }
 
         /// <summary>
+        /// Test enumeration
+        /// </summary>
+        [Column]
+        public AccountType AccountType { get; set; } = AccountType.User;
+
+        /// <summary>
         /// A lazy loaded enumeration that fetches all Privilages
         /// that are bound by the foreign key and this Account.Id
         /// </summary>
         public virtual IEnumerable<UserPrivilege> Privilages { get; set; }
+    }
+
+    public enum AccountType : int
+    {
+        User = 3,
+        Admin = 4
     }
 }

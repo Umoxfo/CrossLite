@@ -129,7 +129,7 @@ namespace CrossLiteTester
 
         private static void RunQueryBuilderTest(CrossLite.SQLiteContext context)
         {
-            // Quote settings form keywords
+            // Quote keywords only with accents
             context.IdentifierQuoteKind = IdentifierQuoteKind.Accents;
             context.IdentifierQuoteMode = IdentifierQuoteMode.KeywordsOnly;
 
@@ -147,7 +147,7 @@ namespace CrossLiteTester
                 .CrossJoin("table3").As("t3").Using("col1")
                 .SelectCount()
                 // Finally, a where clause
-                .Where("col1").Equals("Yes").And("col22").GreaterThan(6).Or("plan").NotEqualTo(3);
+                .Where("col1").Equals(AccountType.Admin).And("col22").GreaterThan(6).Or("plan").NotEqualTo(3);
             var queryString = query.BuildQuery();
 
             // Log query builder time (14ms for me on an i7-950)

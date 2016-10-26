@@ -9,40 +9,40 @@ namespace CrossLite.QueryBuilder
     /// <summary>
     /// This object represents an SQL expression within a Where clause.
     /// </summary>
-    public class SqlExpression<TWhere> where TWhere : IWhereStatement
+    public sealed class SqlExpression<TWhere> where TWhere : IWhereStatement
     {
         /// <summary>
         /// The column name for this expression
         /// </summary>
-        public string FieldName { get; protected set; }
+        public string Identifier { get; private set; }
 
         /// <summary>
         /// The Comaparison Operator to use
         /// </summary>
-        public Comparison ComparisonOperator { get; protected set; }
+        public Comparison ComparisonOperator { get; private set; }
 
         /// <summary>
         /// The Value of this expression
         /// </summary>
-        public object Value { get; protected set; }
+        public object Value { get; private set; }
 
         /// <summary>
         /// The <see cref="WhereStatement"/> that this expression is attached to
         /// </summary>
-        protected TWhere Statement;
+        private TWhere Statement;
 
         /// <summary>
         /// Creates a new instance of <see cref="SqlExpression"/>
         /// </summary>
-        /// <param name="fieldName">The field (column) name we are expressing</param>
+        /// <param name="columnName">The column name we are expressing</param>
         /// <param name="operator">The comparison operator</param>
         /// <param name="value">The value of this expression comparison.</param>
         /// <param name="statement">The <see cref="WhereStatement"/> we are attached to. This
         /// allows chaining methods easily.</param>
-        public SqlExpression(string fieldName, Comparison @operator, object value, TWhere statement)
+        public SqlExpression(string columnName, Comparison @operator, object value, TWhere statement)
         {
             // Set property values
-            this.FieldName = fieldName;
+            this.Identifier = columnName;
             this.ComparisonOperator = @operator;
             this.Value = value;
             this.Statement = statement;
@@ -70,13 +70,46 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Creates a new instance of <see cref="SqlExpression"/>
         /// </summary>
-        /// <param name="fieldName">The field (column) name we are expressing</param>
+        /// <param name="columnName">The column name we are expressing</param>
         /// <param name="statement">The <see cref="WhereStatement"/> we are attached to. This
         /// allows chaining methods easily.</param>
-        public SqlExpression(string fieldName, TWhere statement)
+        public SqlExpression(string columnName, TWhere statement)
         {
-            this.FieldName = fieldName;
+            this.Identifier = columnName;
             this.Statement = statement;
+        }
+
+        /// <summary>
+        /// Sets the internal value
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="value"></param>
+        /// <param name="operator"></param>
+        /// <returns></returns>
+        private TWhere SetValue<T>(T value, Comparison @operator) where T : struct
+        {
+            Value = GetUnderlyingValue(value);
+            ComparisonOperator = @operator;
+            return Statement;
+        }
+
+        /// <summary>
+        /// If the struct is an enumeration, returns the underlying value type. Otherwise
+        /// just the value is returned
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        private object GetUnderlyingValue<T>(T value)
+        {
+            Type valueType = typeof(T);
+            if (valueType.IsEnum)
+            {
+                Type type = Enum.GetUnderlyingType(valueType);
+                return Convert.ChangeType(value, type);
+            }
+
+            return value;
         }
 
         /// <summary>
@@ -93,11 +126,7 @@ namespace CrossLite.QueryBuilder
         /// Specifies the comparison of this expression with an Equal operator
         /// </summary>
         public TWhere Equals<T>(T value) where T : struct
-        {
-            ComparisonOperator = Comparison.Equals;
-            Value = value;
-            return Statement;
-        }
+            => SetValue(value, Comparison.Equals);
 
         /// <summary>
         /// Specifies the comparison of this expression with an Not equal operator
@@ -113,11 +142,7 @@ namespace CrossLite.QueryBuilder
         /// Specifies the comparison of this expression with an Not equal operator
         /// </summary>
         public TWhere NotEqualTo<T>(T value) where T : struct
-        {
-            ComparisonOperator = Comparison.NotEqualTo;
-            Value = value;
-            return Statement;
-        }
+            => SetValue(value, Comparison.NotEqualTo);
 
         /// <summary>
         /// Specifies the comparison of this expression with a Simple pattern matching operator
@@ -143,41 +168,25 @@ namespace CrossLite.QueryBuilder
         /// Specifies the comparison of this expression with a Greater than or equal operator
         /// </summary>
         public TWhere GreaterOrEquals<T>(T value) where T : struct
-        {
-            ComparisonOperator = Comparison.GreaterOrEquals;
-            Value = value;
-            return Statement;
-        }
+            => SetValue(value, Comparison.GreaterOrEquals);
 
         /// <summary>
         /// Specifies the comparison of this expression with a Greater than operator
         /// </summary>
         public TWhere GreaterThan<T>(T value) where T : struct
-        {
-            ComparisonOperator = Comparison.GreaterThan;
-            Value = value;
-            return Statement;
-        }
+            => SetValue(value, Comparison.GreaterThan);
 
         /// <summary>
         /// Specifies the comparison of this expression with a Less than or equal operator
         /// </summary>
-        public TWhere LessOrEquals<T>(T value) where T : struct
-        {
-            ComparisonOperator = Comparison.LessOrEquals;
-            Value = value;
-            return Statement;
-        }
+        public TWhere LessOrEquals<T>(T value) where T : struct 
+            => SetValue(value, Comparison.LessOrEquals);
 
         /// <summary>
         /// Specifies the comparison of this expression with a Less than operator
         /// </summary>
         public TWhere LessThan<T>(T value) where T : struct
-        {
-            ComparisonOperator = Comparison.LessThan;
-            Value = value;
-            return Statement;
-        }
+            => SetValue(value, Comparison.LessThan);
 
         /// <summary>
         /// Specifies the comparison of this expression is within a set of values
@@ -195,7 +204,7 @@ namespace CrossLite.QueryBuilder
         public TWhere In<T>(params T[] values) where T : struct
         {
             ComparisonOperator = Comparison.In;
-            Value = values;
+            Value = values.Select(x => GetUnderlyingValue(x));
             return Statement;
         }
 
@@ -215,7 +224,7 @@ namespace CrossLite.QueryBuilder
         public TWhere In<T>(IEnumerable<T> values) where T : struct
         {
             ComparisonOperator = Comparison.NotIn;
-            Value = values;
+            Value = values.Select(x => GetUnderlyingValue(x));
             return Statement;
         }
 
@@ -235,7 +244,7 @@ namespace CrossLite.QueryBuilder
         public TWhere NotIn<T>(params T[] values) where T : struct
         {
             ComparisonOperator = Comparison.NotIn;
-            Value = values;
+            Value = values.Select(x => GetUnderlyingValue(x));
             return Statement;
         }
 
@@ -255,7 +264,7 @@ namespace CrossLite.QueryBuilder
         public TWhere NotIn<T>(IEnumerable<T> values) where T : struct
         {
             ComparisonOperator = Comparison.NotIn;
-            Value = values;
+            Value = values.Select(x => GetUnderlyingValue(x));
             return Statement;
         }
 
@@ -265,7 +274,7 @@ namespace CrossLite.QueryBuilder
         public TWhere Between<T>(T value1, T value2) where T : struct
         {
             ComparisonOperator = Comparison.Between;
-            Value = new T[] { value1, value2 };
+            Value = new object[] { GetUnderlyingValue(value1), GetUnderlyingValue(value2) };
             return Statement;
         }
 
@@ -275,7 +284,7 @@ namespace CrossLite.QueryBuilder
         public TWhere NotBetween<T>(T value1, T value2) where T : struct
         {
             ComparisonOperator = Comparison.NotBetween;
-            Value = new T[] { value1, value2 };
+            Value = new object[] { GetUnderlyingValue(value1), GetUnderlyingValue(value2) };
             return Statement;
         }
 
@@ -371,7 +380,7 @@ namespace CrossLite.QueryBuilder
         protected string CreateExpressionString(SQLiteParameter param)
         {
             // Correct Name and define variables
-            string fieldName = SQLiteContext.QuoteIdentifier(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            string fieldName = SQLiteContext.QuoteIdentifier(Identifier, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
             switch (ComparisonOperator)
             {
                 case Comparison.Equals:
@@ -407,7 +416,7 @@ namespace CrossLite.QueryBuilder
         protected string CreateExpressionString(params SQLiteParameter[] parameters)
         {
             // Correct Name and define variables
-            string fieldName = SQLiteContext.QuoteIdentifier(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            string fieldName = SQLiteContext.QuoteIdentifier(Identifier, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
             switch (ComparisonOperator)
             {
                 case Comparison.In:
@@ -437,7 +446,7 @@ namespace CrossLite.QueryBuilder
         protected string CreateExpressionString(SqlLiteral literal)
         {
             // Correct Name and define variables
-            string fieldName = SQLiteContext.QuoteIdentifier(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            string fieldName = SQLiteContext.QuoteIdentifier(Identifier, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
             switch (ComparisonOperator)
             {
                 case Comparison.Equals:
@@ -469,7 +478,7 @@ namespace CrossLite.QueryBuilder
         protected string CreateExpressionString()
         {
             // Correct Name and define variables
-            string fieldName = SQLiteContext.QuoteIdentifier(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            string fieldName = SQLiteContext.QuoteIdentifier(Identifier, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
 
             // Only 2 options for null values
             if (Value == null || Value == DBNull.Value)

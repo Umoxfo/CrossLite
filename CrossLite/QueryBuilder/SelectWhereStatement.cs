@@ -58,7 +58,7 @@ namespace CrossLite.QueryBuilder
         }
 
         /// <summary>
-        /// Creates a new instance of <see cref="WhereStatement"/> using the quoting settings
+        /// Creates a new instance of <see cref="SelectWhereStatement"/> using the quoting settings
         /// from the supplied SQLiteContext
         /// </summary>
         public SelectWhereStatement(SQLiteContext context) : this()
@@ -67,6 +67,11 @@ namespace CrossLite.QueryBuilder
             AttributeQuoteKind = context.IdentifierQuoteKind;
         }
 
+        /// <summary>
+        /// Creates a new instance of <see cref="SelectWhereStatement"/> using the quoting settings
+        /// from the supplied SelectQueryBuilder
+        /// </summary>
+        /// <param name="query"></param>
         public SelectWhereStatement(SelectQueryBuilder query) : this()
         {
             this.Query = query;

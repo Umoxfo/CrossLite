@@ -501,7 +501,7 @@ namespace CrossLite
             // Get our Table Mapping
             Type objType = typeof(TEntity);
             TableMapping table = EntityCache.GetTableMap(objType);
-            string sql = $"SELECT * FROM `{table.TableName}`;";
+            string sql = $"SELECT * FROM {QuoteIdentifier(table.TableName)};";
 
             // Create the SQL Command
             using (SQLiteCommand command = this.CreateCommand(sql))
@@ -523,6 +523,11 @@ namespace CrossLite
         #endregion Query Methods
 
         #region Helper Methods
+
+        /// <summary>
+        /// Creates a new command to be executed on the database
+        /// </summary>
+        public SQLiteCommand CreateCommand() => new SQLiteCommand(Connection);
 
         /// <summary>
         /// Creates a new command to be executed on the database
@@ -559,9 +564,8 @@ namespace CrossLite
 
                 if (property.PropertyType.IsEnum)
                 {
-                    string value = reader.GetString(i);
-                    object val = Enum.Parse(property.PropertyType, value);
-                    property.SetValue(entity, val);
+                    var value = Enum.Parse(property.PropertyType, reader.GetValue(i).ToString());
+                    property.SetValue(entity, value);
                 }
                 else
                 {
@@ -593,11 +597,15 @@ namespace CrossLite
                         case TypeCode.Char:
                             property.SetValue(entity, reader.GetChar(i));
                             break;
+                        case TypeCode.DateTime:
+                            if (!reader.IsDBNull(i))
+                                property.SetValue(entity, reader.GetDateTime(i));
+                            break;
                         default:
                             // Correct DBNull values
                             object val = reader.GetValue(i);
                             if (val is DBNull)
-                                val = String.Empty;
+                                continue;
 
                             property.SetValue(entity, val);
                             break;
@@ -615,35 +623,34 @@ namespace CrossLite
         /// <summary>
         /// Converts a C# data type to a textual SQLite data type
         /// </summary>
-        /// <param name="propertyType"></param>
+        /// <param name="propertyType">The C# property type that we are converting to</param>
         /// <returns></returns>
         internal static SQLiteDataType GetSQLiteType(Type propertyType)
         {
+            // Store enums as their underlying type
             if (propertyType.IsEnum)
-            {
-                return SQLiteDataType.TEXT;
-            }
+                propertyType = Enum.GetUnderlyingType(propertyType);
 
             switch (Type.GetTypeCode(propertyType))
             {
                 case TypeCode.Boolean:
+                case TypeCode.Byte:
                 case TypeCode.Int16:
                 case TypeCode.Int32:
                 case TypeCode.Int64:
-                case TypeCode.Byte:
                 case TypeCode.Char:
                     return SQLiteDataType.INTEGER;
                 case TypeCode.String:
+                case TypeCode.DateTime:
                     return SQLiteDataType.TEXT;
                 case TypeCode.Object:
                     return SQLiteDataType.BLOB;
                 case TypeCode.Decimal:
-                case TypeCode.DateTime:
                     return SQLiteDataType.NUMERIC;
                 case TypeCode.Double:
                     return SQLiteDataType.REAL;
                 default:
-                    throw new NotSupportedException("Invalid object type conversion.");
+                    throw new NotSupportedException($"Invalid object type conversion to \"{propertyType.Name}\".");
             }
         }
 
@@ -668,7 +675,8 @@ namespace CrossLite
         /// <summary>
         /// Takes an identifier and qoutes it if the name is a reserved keyword. Passing
         /// a prefixed identifier (ex: "table.column") is valid. The <see cref="IdentifierQuoteKind"/> 
-        /// and <see cref="IdentifierQuoteMode"/> options are used.
+        /// and <see cref="IdentifierQuoteMode"/> options are used when determining if the identifier
+        /// needs to be quoted or not.
         /// </summary>
         /// <param name="value">The attribute name</param>
         /// <returns></returns>
