@@ -6,3 +6,4 @@ CrossLiteTester/obj/*
 *.suo
 /CrossLite/IQueryable
 /CrossLite/CrossLite_IQueryable.rar
+/packages/System.Data.SQLite.Core.1.0.103

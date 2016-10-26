@@ -12,8 +12,8 @@ __Please bear with me as I complete this Readme, it is still a work in progress_
 - [CodeFirst Entity](#codefirst-entity)
 
 #### Requirements
- * System.Data.SQLite v 1.0.99
- * Microsoft .NET 4.5.2 or newer
+ * System.Data.SQLite.Core v1.0.103.0
+ * Microsoft .NET 4.6.1 or newer
 
 #### Basic Read Query Example
 ```C#
