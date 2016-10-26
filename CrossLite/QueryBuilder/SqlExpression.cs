@@ -377,7 +377,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Creates an SQL expression with the value of the <see cref="SQLiteParameter.ParameterName"/>. 
         /// </summary>
-        protected string CreateExpressionString(SQLiteParameter param)
+        private string CreateExpressionString(SQLiteParameter param)
         {
             // Correct Name and define variables
             string fieldName = SQLiteContext.QuoteIdentifier(Identifier, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
@@ -413,7 +413,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Creates an SQL expression with the values of the <see cref="SQLiteParameter.ParameterName"/>'s. 
         /// </summary>
-        protected string CreateExpressionString(params SQLiteParameter[] parameters)
+        private string CreateExpressionString(params SQLiteParameter[] parameters)
         {
             // Correct Name and define variables
             string fieldName = SQLiteContext.QuoteIdentifier(Identifier, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
@@ -443,7 +443,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Creates an SQL expression based on the literal value. The object value will not be escaped.
         /// </summary>
-        protected string CreateExpressionString(SqlLiteral literal)
+        private string CreateExpressionString(SqlLiteral literal)
         {
             // Correct Name and define variables
             string fieldName = SQLiteContext.QuoteIdentifier(Identifier, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
@@ -475,7 +475,7 @@ namespace CrossLite.QueryBuilder
         /// be escaped and properly quoted.
         /// </summary>
         /// <returns></returns>
-        protected string CreateExpressionString()
+        private string CreateExpressionString()
         {
             // Correct Name and define variables
             string fieldName = SQLiteContext.QuoteIdentifier(Identifier, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);

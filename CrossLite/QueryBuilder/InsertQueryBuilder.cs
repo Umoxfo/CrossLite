@@ -143,6 +143,18 @@ namespace CrossLite.QueryBuilder
         }
 
         /// <summary>
+        /// Verifies that all SQL queries associated with the query builder can be
+        /// successfully compiled. A <see cref="SQLiteException"/> will be raised if
+        /// any errors occur.
+        /// </summary>
+        /// <remarks>
+        /// This method builds a command and uses the already made VerifyOnly method.
+        /// If you plan to also execute the query, might as well call BuildCommand()
+        /// and use the VerifyOnly() method on the command itself.
+        /// </remarks>
+        public void VerifyQuery() => BuildCommand().VerifyOnly();
+
+        /// <summary>
         /// Executes the built SQL statement on the Database connection that was passed
         /// in the contructor. All WHERE paramenters are propery escaped, 
         /// making this command SQL Injection safe.

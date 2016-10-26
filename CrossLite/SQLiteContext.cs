@@ -93,12 +93,19 @@ namespace CrossLite
             {
                 try
                 {
+                    // Close and dispose of the internal connection
                     Connection.Close();
                     Connection.Dispose();
                 }
-                catch (ObjectDisposedException) { }
-
-                IsDisposed = true;
+                catch (ObjectDisposedException)
+                {
+                    // We dont do anything here
+                }
+                finally
+                {
+                    // Always set this to true!
+                    IsDisposed = true;
+                }
             }
         }
 

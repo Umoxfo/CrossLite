@@ -195,33 +195,22 @@ namespace CrossLite
         /// <returns>The number of rows affected by this operation</returns>
         public bool Remove(TEntity obj)
         {
-            // Create a WHERE statement
-            WhereStatement statement = new WhereStatement(Context);
+            // Start the query using a query builder
+            var builder = new DeleteQueryBuilder(Context).From(EntityTable.TableName);
 
-            // build the where statement, using primary keys
+            // build the where statement, using primary keys only
             foreach (string keyName in EntityTable.PrimaryKeys)
             {
                 PropertyInfo info = EntityTable.Columns[keyName].Property;
-                statement.And(keyName, Comparison.Equals, info.GetValue(obj));
+                builder.Where(keyName, Comparison.Equals, info.GetValue(obj));
             }
-
-            // Build the SQL query
-            List<SQLiteParameter> parameters;
-            string sql = String.Format("DELETE FROM {0} WHERE {1}",
-                Context.QuoteIdentifier(EntityTable.TableName),
-                statement.BuildStatement(out parameters)
-            );
 
             // Execute the command
-            using (SQLiteCommand command = Context.CreateCommand(sql))
-            {
-                command.Parameters.AddRange(parameters.ToArray());
-                return command.ExecuteNonQuery() > 0;
-            }
+            return builder.Execute() > 0;
         }
 
         /// <summary>
-        /// Updates an Entity in the database, provided none of the Primary
+        /// Updates an Entity in the database, provided that none of the Primary
         /// keys were modified.
         /// </summary>
         /// <param name="obj"></param>
@@ -314,10 +303,7 @@ namespace CrossLite
         /// on an entity.
         /// </summary>
         /// <param name="entity"></param>
-        public void Refresh(TEntity entity)
-        {
-            EntityTable.CreateRelationships(entity, Context);
-        }
+        public void Refresh(TEntity entity) => EntityTable.CreateRelationships(entity, Context);
 
         /// <summary>
         /// Returns whether an Entity exists in the database, by comparing its 
@@ -395,14 +381,14 @@ namespace CrossLite
             }
         }
 
-        public IEnumerator<TEntity> GetEnumerator()
-        {
-            return Context.Select<TEntity>().GetEnumerator();
-        }
+        /// <summary>
+        /// Selects all of the records in the database, and returns the Enumerator
+        /// </summary>
+        public IEnumerator<TEntity> GetEnumerator() => Context.Select<TEntity>().GetEnumerator();
 
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
+        /// <summary>
+        /// Selects all of the records in the database, and returns the Enumerator
+        /// </summary>
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

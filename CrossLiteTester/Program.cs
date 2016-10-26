@@ -25,8 +25,6 @@ namespace CrossLiteTester
             using (TestContext db = new TestContext(builder.ToString()))
             using (var trans = db.BeginTransaction())
             {
-                int i = 1;
-
                 // Run test 1
                 RunQueryBuilderTest(db);
 
