@@ -174,7 +174,7 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("No column values to update");
 
             // Start Query
-            var query = new StringBuilder($"UPDATE {Context.QuoteAttribute(Table)} SET ", 256);
+            var query = new StringBuilder($"UPDATE {Context.QuoteIdentifier(Table)} SET ", 256);
             var parameters = new List<SQLiteParameter>();
 
             // Add Fields
@@ -198,17 +198,17 @@ namespace CrossLite.QueryBuilder
 
                     // Append Query
                     if (column.Value.Mode == ValueMode.Set)
-                        query.AppendFormat("{0} = {1}", Context.QuoteAttribute(column.Key), param.ParameterName);
+                        query.AppendFormat("{0} = {1}", Context.QuoteIdentifier(column.Key), param.ParameterName);
                     else
-                        query.AppendFormat("{0} = {0} {1} {2}", Context.QuoteAttribute(column.Key), GetSign(column.Value.Mode), param.ParameterName);
+                        query.AppendFormat("{0} = {0} {1} {2}", Context.QuoteIdentifier(column.Key), GetSign(column.Value.Mode), param.ParameterName);
                 }
                 else
                 {
                     if (column.Value.Mode == ValueMode.Set)
                         query.AppendFormat("{0} = {1}",
-                            Context.QuoteAttribute(column.Key), SqlExpression<WhereStatement>.FormatSQLValue(column.Value.Value));
+                            Context.QuoteIdentifier(column.Key), SqlExpression<WhereStatement>.FormatSQLValue(column.Value.Value));
                     else
-                        query.AppendFormat("{0} = {0} {1} {2}", Context.QuoteAttribute(column.Key),
+                        query.AppendFormat("{0} = {0} {1} {2}", Context.QuoteIdentifier(column.Key),
                             GetSign(column.Value.Mode), SqlExpression<WhereStatement>.FormatSQLValue(column.Value.Value));
                 }
             }

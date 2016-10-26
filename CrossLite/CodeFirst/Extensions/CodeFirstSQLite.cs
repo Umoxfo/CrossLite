@@ -33,7 +33,7 @@ namespace CrossLite.CodeFirst
             sql.AppendIf(flags.HasFlag(TableCreationOptions.Temporary), "TEMP ");
             sql.Append("TABLE ");
             sql.AppendIf(flags.HasFlag(TableCreationOptions.IfNotExists), "IF NOT EXISTS ");
-            sql.AppendLine($"{QuoteKeyword(table.TableName)} (");
+            sql.AppendLine($"{context.QuoteIdentifier(table.TableName)} (");
 
             // -----------------------------------------
             // Append attributes
@@ -46,7 +46,7 @@ namespace CrossLite.CodeFirst
                 SQLiteDataType pSqlType = GetSQLiteType(propertyType);
 
                 // Start appending column definition SQL
-                sql.Append($"\t{QuoteKeyword(colData.Key)} {pSqlType}");
+                sql.Append($"\t{context.QuoteIdentifier(colData.Key)} {pSqlType}");
 
                 // Primary Key and Unique column definition
                 if (info.AutoIncrement || (table.HasPrimaryKey && info.PrimaryKey))
@@ -109,7 +109,7 @@ namespace CrossLite.CodeFirst
             if (!table.HasPrimaryKey && keys.Length > 0)
             {
                 sql.Append($"\tPRIMARY KEY(");
-                sql.Append(String.Join(", ", keys.Select(x => QuoteKeyword(x))));
+                sql.Append(String.Join(", ", keys.Select(x => context.QuoteIdentifier(x))));
                 sql.AppendLine("),");
             }
 
@@ -119,7 +119,7 @@ namespace CrossLite.CodeFirst
             foreach (var cu in table.UniqueConstraints)
             {
                 sql.Append($"\tUNIQUE(");
-                sql.Append(String.Join(", ", cu.Attributes.Select(x => QuoteKeyword(x))));
+                sql.Append(String.Join(", ", cu.Attributes.Select(x => context.QuoteIdentifier(x))));
                 sql.AppendLine("),");
             }
 
@@ -130,12 +130,14 @@ namespace CrossLite.CodeFirst
             {
                 // Primary table attributes
                 ForeignKeyAttribute fk = info.ForeignKey;
-                string attrs1 = String.Join(", ", fk.Attributes.Select(x => QuoteKeyword(x)));
-                string attrs2 = String.Join(", ", info.InverseKey.Attributes.Select(x => QuoteKeyword(x)));
+                string attrs1 = String.Join(", ", fk.Attributes.Select(x => context.QuoteIdentifier(x)));
+                string attrs2 = String.Join(", ", info.InverseKey.Attributes.Select(x => context.QuoteIdentifier(x)));
 
                 // Build sql command
                 TableMapping map = EntityCache.GetTableMap(info.ParentEntityType);
-                sql.Append($"\tFOREIGN KEY({QuoteKeyword(attrs1)}) REFERENCES {QuoteKeyword(map.TableName)}({attrs2})");
+                sql.Append('\t');
+                sql.Append($"FOREIGN KEY({context.QuoteIdentifier(attrs1)}) ");
+                sql.Append($"REFERENCES {context.QuoteIdentifier(map.TableName)}({attrs2})");
 
                 // Add integrety options
                 sql.AppendIf(fk.OnUpdate != ReferentialIntegrity.NoAction, $" ON UPDATE {ToSQLite(fk.OnUpdate)}");
@@ -178,7 +180,7 @@ namespace CrossLite.CodeFirst
             TableMapping table = EntityCache.GetTableMap(entityType);
 
             // Build the SQL query and perform the deletion
-            string sql = $"DROP TABLE IF EXISTS {QuoteKeyword(table.TableName)}";
+            string sql = $"DROP TABLE IF EXISTS {context.QuoteIdentifier(table.TableName)}";
             using (SQLiteCommand command = context.CreateCommand(sql))
             {
                 command.ExecuteNonQuery();

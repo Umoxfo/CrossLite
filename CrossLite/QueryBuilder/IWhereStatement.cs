@@ -16,14 +16,14 @@ namespace CrossLite.QueryBuilder
         LogicOperator InnerClauseOperator { get; set; }
 
         /// <summary>
-        /// Gets or sets the <see cref="CrossLite.AttributeQuoteMode"/> this instance will use for queries
+        /// Gets or sets the <see cref="CrossLite.IdentifierQuoteMode"/> this instance will use for queries
         /// </summary>
-        AttributeQuoteMode AttributeQuoteMode { get; set; }
+        IdentifierQuoteMode AttributeQuoteMode { get; set; }
 
         /// <summary>
-        /// Gets or sets the <see cref="CrossLite.AttributeQuoteKind"/> this instance will use for queries
+        /// Gets or sets the <see cref="CrossLite.IdentifierQuoteKind"/> this instance will use for queries
         /// </summary>
-        AttributeQuoteKind AttributeQuoteKind { get; set; }
+        IdentifierQuoteKind AttributeQuoteKind { get; set; }
 
         /// <summary>
         /// Indicates whether this WhereStatement has any clauses, or if its empty.

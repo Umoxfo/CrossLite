@@ -108,7 +108,7 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("Table to update was not set.");
 
             // Start Query
-            var query = new StringBuilder($"DELETE FROM {Context.QuoteAttribute(Table)}", 128);
+            var query = new StringBuilder($"DELETE FROM {Context.QuoteIdentifier(Table)}", 128);
             var parameters = new List<SQLiteParameter>();
 
             // Append Where

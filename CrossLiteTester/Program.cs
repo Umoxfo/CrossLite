@@ -130,8 +130,8 @@ namespace CrossLiteTester
         private static void RunQueryBuilderTest(CrossLite.SQLiteContext context)
         {
             // Quote settings form keywords
-            context.AttributeQuoteKind = AttributeQuoteKind.Accents;
-            context.AttributeQuoteMode = AttributeQuoteMode.KeywordsOnly;
+            context.IdentifierQuoteKind = IdentifierQuoteKind.Accents;
+            context.IdentifierQuoteMode = IdentifierQuoteMode.KeywordsOnly;
 
             // Start logging times
             Stopwatch timer = Stopwatch.StartNew();

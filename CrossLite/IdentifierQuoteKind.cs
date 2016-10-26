@@ -1,10 +1,10 @@
 ﻿namespace CrossLite
 {
     /// <summary>
-    /// If you want to use a keyword as an attribute name, you need to quote it. 
+    /// If you want to use a keyword as an identifier, you need to quote it. 
     /// There are four ways of quoting keywords in SQLite
     /// </summary>
-    public enum AttributeQuoteKind
+    public enum IdentifierQuoteKind
     {
         /// <summary>
         /// Quotes identifiers using the default SQLite quoting mode (Double Quotes).

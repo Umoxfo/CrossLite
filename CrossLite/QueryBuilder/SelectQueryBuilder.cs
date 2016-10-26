@@ -798,7 +798,7 @@ namespace CrossLite.QueryBuilder
                 // Check if the user wants to select all columns
                 if (colCount == 0)
                 {
-                    query.AppendFormat("{0}.*", Context.QuoteAttribute(tableAlias));
+                    query.AppendFormat("{0}.*", Context.QuoteIdentifier(tableAlias));
                     query.AppendIf(tableCount > 0, ", ");
                 }
                 else
@@ -816,7 +816,7 @@ namespace CrossLite.QueryBuilder
             }
 
             // === Append main Table === //
-            query.Append($" FROM {Context.QuoteAttribute(Table)} AS {Context.QuoteAttribute(TableAliases[Table])}");
+            query.Append($" FROM {Context.QuoteIdentifier(Table)} AS {Context.QuoteIdentifier(TableAliases[Table])}");
 
             // Append Joined tables
             if (Joins.Count > 0)
@@ -842,8 +842,8 @@ namespace CrossLite.QueryBuilder
                     }
 
                     // Append the join statement
-                    string alias = Context.QuoteAttribute(TableAliases[clause.JoiningTable]);
-                    query.Append($"{Context.QuoteAttribute(clause.JoiningTable)} AS {alias}");
+                    string alias = Context.QuoteIdentifier(TableAliases[clause.JoiningTable]);
+                    query.Append($"{Context.QuoteIdentifier(clause.JoiningTable)} AS {alias}");
 
                     // Do we have an expression?
                     if (clause.ExpressionType == JoinExpressionType.On)
@@ -852,16 +852,16 @@ namespace CrossLite.QueryBuilder
                         query.Append(" ON ");
                         query.Append(
                             SqlExpression<WhereStatement>.CreateExpressionString(
-                                $"{alias}.{Context.QuoteAttribute(clause.JoiningColumn)}",
+                                $"{alias}.{Context.QuoteIdentifier(clause.JoiningColumn)}",
                                 clause.ComparisonOperator,
-                                new SqlLiteral(Context.QuoteAttribute($"{fromT}.{clause.FromColumn}"))
+                                new SqlLiteral(Context.QuoteIdentifier($"{fromT}.{clause.FromColumn}"))
                             )
                         );
                     }
                     else if (clause.ExpressionType == JoinExpressionType.Using)
                     {
                         var parts = clause.JoiningColumn.Split(',');
-                        query.AppendFormat(" USING({0})", String.Join(", ", parts.Select(x => Context.QuoteAttribute(x))));
+                        query.AppendFormat(" USING({0})", String.Join(", ", parts.Select(x => Context.QuoteIdentifier(x))));
                     }
                 }
             }
@@ -878,7 +878,7 @@ namespace CrossLite.QueryBuilder
 
             // Append GroupBy
             if (GroupByColumns.Count > 0)
-                query.Append(" GROUP BY " + String.Join(", ", GroupByColumns.Select(x => Context.QuoteAttribute(x))));
+                query.Append(" GROUP BY " + String.Join(", ", GroupByColumns.Select(x => Context.QuoteIdentifier(x))));
 
             // Append Having
             if (HavingStatement.HasClause)
@@ -896,7 +896,7 @@ namespace CrossLite.QueryBuilder
                 query.Append(" ORDER BY");
                 foreach (OrderByClause clause in OrderByStatements)
                 {
-                    query.Append($" {Context.QuoteAttribute(clause.FieldName)}");
+                    query.Append($" {Context.QuoteIdentifier(clause.FieldName)}");
 
                     // Add sorting if not default
                     query.AppendIf(clause.SortOrder == Sorting.Descending, " DESC");

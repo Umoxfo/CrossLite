@@ -66,13 +66,13 @@ namespace CrossLite.QueryBuilder
                 name = Name;
 
             // Add the selector to the string
-            builder.AppendFormat(GetAggregateString(Aggregate), (Escape) ? context.QuoteAttribute(name) : name);
+            builder.AppendFormat(GetAggregateString(Aggregate), (Escape) ? context.QuoteIdentifier(name) : name);
 
             // Do we alias?
             if (!String.IsNullOrWhiteSpace(Alias))
-                builder.Append($" AS {context.QuoteAttribute(Alias)}");
+                builder.Append($" AS {context.QuoteIdentifier(Alias)}");
             else if (Aggregate == AggregateFunction.None)
-                builder.Append($" AS {context.QuoteAttribute(Name)}");
+                builder.Append($" AS {context.QuoteIdentifier(Name)}");
         }
 
         /// <summary>

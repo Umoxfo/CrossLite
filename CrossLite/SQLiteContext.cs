@@ -4,7 +4,6 @@ using System.Data;
 using System.Data.Common;
 using System.Data.SQLite;
 using System.Globalization;
-using System.Linq;
 using System.Reflection;
 using System.Text;
 using CrossLite.CodeFirst;
@@ -12,7 +11,7 @@ using CrossLite.CodeFirst;
 namespace CrossLite
 {
     /// <summary>
-    /// This class represents a SQLite connection in ORM terms.
+    /// This class represents an SQLite connection with ORM query methods.
     /// 
     /// ORM is a technique to map database objects to Object Oriented Programming 
     /// Objects to let the developer focus on programming in an Object 
@@ -21,16 +20,16 @@ namespace CrossLite
     public class SQLiteContext : IDisposable
     {
         /// <summary>
-        /// Gets or sets the default <see cref="CrossLite.AttributeQuoteMode"/> for queries. New instances of
+        /// Gets or sets the default <see cref="CrossLite.IdentifierQuoteMode"/> for queries. New instances of
         /// <see cref="SQLiteContext"/> with automatically dfefault to this value.
         /// </summary>
-        public static AttributeQuoteMode DefaultAttributeQuoteMode { get; set; } = AttributeQuoteMode.None;
+        public static IdentifierQuoteMode DefaultIdentifierQuoteMode { get; set; } = IdentifierQuoteMode.None;
 
         /// <summary>
-        /// Gets or sets the default <see cref="CrossLite.AttributeQuoteKind"/> for queries. New instances of
+        /// Gets or sets the default <see cref="CrossLite.IdentifierQuoteKind"/> for queries. New instances of
         /// <see cref="SQLiteContext"/> with automatically dfefault to this value.
         /// </summary>
-        public static AttributeQuoteKind DefaultAttributeQuoteKind { get; set; } = AttributeQuoteKind.Default;
+        public static IdentifierQuoteKind DefaultIdentifierQuoteKind { get; set; } = IdentifierQuoteKind.Default;
 
         /// <summary>
         /// The database connection
@@ -43,14 +42,14 @@ namespace CrossLite
         protected bool IsDisposed = false;
 
         /// <summary>
-        /// Gets or sets the <see cref="CrossLite.AttributeQuoteMode"/> this instance will use for queries
+        /// Gets or sets the <see cref="CrossLite.IdentifierQuoteMode"/> this instance will use for queries
         /// </summary>
-        public AttributeQuoteMode AttributeQuoteMode { get; set; } = DefaultAttributeQuoteMode;
+        public IdentifierQuoteMode IdentifierQuoteMode { get; set; } = DefaultIdentifierQuoteMode;
 
         /// <summary>
-        /// Gets or sets the <see cref="CrossLite.AttributeQuoteKind"/> this instance will use for queries
+        /// Gets or sets the <see cref="CrossLite.IdentifierQuoteKind"/> this instance will use for queries
         /// </summary>
-        public AttributeQuoteKind AttributeQuoteKind { get; set; } = DefaultAttributeQuoteKind;
+        public IdentifierQuoteKind IdentifierQuoteKind { get; set; } = DefaultIdentifierQuoteKind;
 
         /// <summary>
         /// Contains the conenction string used to open this connection
@@ -667,46 +666,29 @@ namespace CrossLite
         }
 
         /// <summary>
-        /// Takes an attribute name and qoutes it if the name is a reserved keyword. Passing
-        /// a prefixed attribute (ex: "table.attribute") is valid. The <see cref="AttributeQuoteKind"/> 
-        /// and <see cref="AttributeQuoteMode"/> options are used.
+        /// Takes an identifier and qoutes it if the name is a reserved keyword. Passing
+        /// a prefixed identifier (ex: "table.column") is valid. The <see cref="IdentifierQuoteKind"/> 
+        /// and <see cref="IdentifierQuoteMode"/> options are used.
         /// </summary>
         /// <param name="value">The attribute name</param>
         /// <returns></returns>
-        public string QuoteAttribute(string value)
-        {
-            // Configuration setting
-            return QuoteKeyword(value, AttributeQuoteMode, AttributeQuoteKind);
-        }
+        public string QuoteIdentifier(string value) => QuoteIdentifier(value, IdentifierQuoteMode, IdentifierQuoteKind);
 
         /// <summary>
-        /// Takes an attribute name and qoutes it if the name is a reserved keyword. Passing
-        /// a prefixed attribute (ex: "table.attribute") is valid. The <see cref="DefaultAttributeQuoteKind"/> 
-        /// and <see cref="DefaultAttributeQuoteMode"/> options are used.
+        /// Takes an identifier and qoutes it if the name is a reserved keyword. Passing
+        /// a prefixed identifier (ex: "table.column") is valid.
         /// </summary>
         /// <param name="value">The attribute name</param>
         /// <returns></returns>
-        public static string QuoteKeyword(string value)
-        {
-            // Global configuration for escaping for now...
-            return QuoteKeyword(value, DefaultAttributeQuoteMode, DefaultAttributeQuoteKind);
-        }
-
-        /// <summary>
-        /// Takes an attribute name and qoutes it if the name is a reserved keyword. Passing
-        /// a prefixed attribute (ex: "table.attribute") is valid.
-        /// </summary>
-        /// <param name="value">The attribute name</param>
-        /// <returns></returns>
-        public static string QuoteKeyword(string value, AttributeQuoteMode mode, AttributeQuoteKind kind)
+        public static string QuoteIdentifier(string value, IdentifierQuoteMode mode, IdentifierQuoteKind kind)
         {
             // Lets make this simple and fast!
-            if (mode == AttributeQuoteMode.None) return value;
+            if (mode == IdentifierQuoteMode.None) return value;
 
             // Split the value by the period seperator, and determine if any identifiers are a keyword
             var parts = value.Split('.');
-            var hasKeyword = mode == AttributeQuoteMode.All;
-            if (mode == AttributeQuoteMode.KeywordsOnly)
+            var hasKeyword = mode == IdentifierQuoteMode.All;
+            if (mode == IdentifierQuoteMode.KeywordsOnly)
                 hasKeyword = (parts.Length > 1) ? ContainsKeyword(parts) : IsKeyword(value);
 
             // Appy the quoting where needed..
@@ -714,8 +696,8 @@ namespace CrossLite
             {
                 switch (mode)
                 {
-                    case AttributeQuoteMode.All: return ApplyQuotes(parts, mode, kind);
-                    case AttributeQuoteMode.KeywordsOnly: return (hasKeyword) ? ApplyQuotes(parts, mode, kind) : value;
+                    case IdentifierQuoteMode.All: return ApplyQuotes(parts, mode, kind);
+                    case IdentifierQuoteMode.KeywordsOnly: return (hasKeyword) ? ApplyQuotes(parts, mode, kind) : value;
                     default: return value;
                 }
             }
@@ -723,37 +705,37 @@ namespace CrossLite
             {
                 switch (mode)
                 {
-                    case AttributeQuoteMode.All: return ApplyQuote(value, kind);
-                    case AttributeQuoteMode.KeywordsOnly: return (hasKeyword) ? ApplyQuote(value, kind) : value;
+                    case IdentifierQuoteMode.All: return ApplyQuotes(value, kind);
+                    case IdentifierQuoteMode.KeywordsOnly: return (hasKeyword) ? ApplyQuotes(value, kind) : value;
                     default: return value;
                 }
             }
         }
 
         /// <summary>
-        /// Performs the actual quoting of the attribute. Passing a prefixed attribute 
-        /// (ex: "table.attribute") is NOT valid, and should be passed to the 
-        /// <see cref="ApplyQuotes(string[], AttributeQuoteMode, AttributeQuoteKind))"/> 
+        /// Performs the actual quoting of the indentifier. Passing a prefixed indentifier
+        /// (ex: "table.column") is NOT valid, and should be passed to the 
+        /// <see cref="ApplyQuotes(string[], IdentifierQuoteMode, IdentifierQuoteKind))"/> 
         /// method instead.
         /// </summary>
-        private static string ApplyQuote(string value, AttributeQuoteKind kind)
+        private static string ApplyQuotes(string value, IdentifierQuoteKind kind)
         {
             var chars = EscapeChars[kind];
             return $"{chars[0]}{value}{chars[1]}";
         }
 
         /// <summary>
-        /// Applies quoting to each attribute parameter that needs it, based on the AttributeQuoteMode,
+        /// Applies quoting to each identifier parameter that needs it, based on the IdentifierQuoteMode,
         /// and chains the result back into a string.
         /// </summary>
-        private static string ApplyQuotes(string[] values, AttributeQuoteMode mode, AttributeQuoteKind kind)
+        private static string ApplyQuotes(string[] values, IdentifierQuoteMode mode, IdentifierQuoteKind kind)
         {
             var chars = EscapeChars[kind];
             var builder = new StringBuilder();
             for (int i = 0; i < values.Length; i++)
             {
                 // Do we need to apply quoting to this string?
-                if (mode == AttributeQuoteMode.All || (mode == AttributeQuoteMode.KeywordsOnly && IsKeyword(values[i])))
+                if (mode == IdentifierQuoteMode.All || (mode == IdentifierQuoteMode.KeywordsOnly && IsKeyword(values[i])))
                     builder.Append($"{chars[0]}{values[i]}{chars[1]}");
                 else
                     builder.Append(values[i]);
@@ -793,12 +775,12 @@ namespace CrossLite
 
         #region Static Properties
 
-        internal static IReadOnlyDictionary<AttributeQuoteKind, char[]> EscapeChars = new Dictionary<AttributeQuoteKind, char[]>()
+        internal static IReadOnlyDictionary<IdentifierQuoteKind, char[]> EscapeChars = new Dictionary<IdentifierQuoteKind, char[]>()
         {
-            { AttributeQuoteKind.Default, new char[2] { '"', '"' } },
-            { AttributeQuoteKind.SingleQuotes, new char[2] { '\'', '\'' } },
-            { AttributeQuoteKind.SquareBrackets, new char[2] { '[', ']' } },
-            { AttributeQuoteKind.Accents, new char[2] { '`', '`' } },
+            { IdentifierQuoteKind.Default, new char[2] { '"', '"' } },
+            { IdentifierQuoteKind.SingleQuotes, new char[2] { '\'', '\'' } },
+            { IdentifierQuoteKind.SquareBrackets, new char[2] { '[', ']' } },
+            { IdentifierQuoteKind.Accents, new char[2] { '`', '`' } },
         };
 
         /// <summary>

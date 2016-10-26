@@ -34,14 +34,14 @@ namespace CrossLite.QueryBuilder
         public bool HasClause => Clauses.Any(x => x.Expressions.Count > 0);
 
         /// <summary>
-        /// Gets or sets the <see cref="CrossLite.AttributeQuoteMode"/> this instance will use for queries
+        /// Gets or sets the <see cref="CrossLite.IdentifierQuoteMode"/> this instance will use for queries
         /// </summary>
-        public AttributeQuoteMode AttributeQuoteMode { get; set; } = SQLiteContext.DefaultAttributeQuoteMode;
+        public IdentifierQuoteMode AttributeQuoteMode { get; set; } = SQLiteContext.DefaultIdentifierQuoteMode;
 
         /// <summary>
-        /// Gets or sets the <see cref="CrossLite.AttributeQuoteKind"/> this instance will use for queries
+        /// Gets or sets the <see cref="CrossLite.IdentifierQuoteKind"/> this instance will use for queries
         /// </summary>
-        public AttributeQuoteKind AttributeQuoteKind { get; set; } = SQLiteContext.DefaultAttributeQuoteKind;
+        public IdentifierQuoteKind AttributeQuoteKind { get; set; } = SQLiteContext.DefaultIdentifierQuoteKind;
 
         /// <summary>
         /// Creates a new instance of <see cref="WhereStatement"/>
@@ -58,8 +58,8 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public WhereStatement(SQLiteContext context) : this()
         {
-            AttributeQuoteMode = context.AttributeQuoteMode;
-            AttributeQuoteKind = context.AttributeQuoteKind;
+            AttributeQuoteMode = context.IdentifierQuoteMode;
+            AttributeQuoteKind = context.IdentifierQuoteKind;
         }
 
         /// <summary>

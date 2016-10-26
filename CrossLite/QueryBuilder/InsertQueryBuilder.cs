@@ -88,7 +88,7 @@ namespace CrossLite.QueryBuilder
                 throw new Exception("No column values specified to insert");
 
             // Start Query
-            StringBuilder query = new StringBuilder($"INSERT INTO {Context.QuoteAttribute(Table)} (", 256);
+            StringBuilder query = new StringBuilder($"INSERT INTO {Context.QuoteIdentifier(Table)} (", 256);
             StringBuilder values = new StringBuilder();
             List<SQLiteParameter> parameters = new List<SQLiteParameter>();
             bool first = true;
@@ -117,12 +117,12 @@ namespace CrossLite.QueryBuilder
                     parameters.Add(Param);
 
                     // Append query's
-                    query.Append(Context.QuoteAttribute(Item.Key));
+                    query.Append(Context.QuoteIdentifier(Item.Key));
                     values.Append(Param.ParameterName);
                 }
                 else
                 {
-                    query.Append(Context.QuoteAttribute(Item.Key));
+                    query.Append(Context.QuoteIdentifier(Item.Key));
                     values.Append(SqlExpression<WhereStatement>.FormatSQLValue(Item.Value));
                 }
             }

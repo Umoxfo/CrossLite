@@ -1,9 +1,9 @@
 ﻿namespace CrossLite
 {
     /// <summary>
-    /// Defines the different Attribute keyword qouting options for queries
+    /// Defines the different identifier qouting options for queries
     /// </summary>
-    public enum AttributeQuoteMode
+    public enum IdentifierQuoteMode
     {
         /// <summary>
         /// Does not escape any attribute names in the query.

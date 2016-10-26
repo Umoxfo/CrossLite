@@ -371,7 +371,7 @@ namespace CrossLite.QueryBuilder
         protected string CreateExpressionString(SQLiteParameter param)
         {
             // Correct Name and define variables
-            string fieldName = SQLiteContext.QuoteKeyword(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            string fieldName = SQLiteContext.QuoteIdentifier(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
             switch (ComparisonOperator)
             {
                 case Comparison.Equals:
@@ -407,7 +407,7 @@ namespace CrossLite.QueryBuilder
         protected string CreateExpressionString(params SQLiteParameter[] parameters)
         {
             // Correct Name and define variables
-            string fieldName = SQLiteContext.QuoteKeyword(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            string fieldName = SQLiteContext.QuoteIdentifier(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
             switch (ComparisonOperator)
             {
                 case Comparison.In:
@@ -437,7 +437,7 @@ namespace CrossLite.QueryBuilder
         protected string CreateExpressionString(SqlLiteral literal)
         {
             // Correct Name and define variables
-            string fieldName = SQLiteContext.QuoteKeyword(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            string fieldName = SQLiteContext.QuoteIdentifier(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
             switch (ComparisonOperator)
             {
                 case Comparison.Equals:
@@ -469,7 +469,7 @@ namespace CrossLite.QueryBuilder
         protected string CreateExpressionString()
         {
             // Correct Name and define variables
-            string fieldName = SQLiteContext.QuoteKeyword(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
+            string fieldName = SQLiteContext.QuoteIdentifier(FieldName, Statement.AttributeQuoteMode, Statement.AttributeQuoteKind);
 
             // Only 2 options for null values
             if (Value == null || Value == DBNull.Value)
