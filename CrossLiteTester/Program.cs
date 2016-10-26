@@ -84,7 +84,7 @@ namespace CrossLiteTester
                     db.Users.Add(entity);
                     var result1 = db.Users.Select(x => x).Where(x => x.Id == 2).ToList();
 
-                    // Query builder testing
+                    // Query builder testing (Account entity name is "test" in the database)
                     var query = new SelectQueryBuilder(db);
                     query.From("test").SelectAll().Where("Id").Between(1, 2);
                     var result2 = query.ExecuteQuery<Account>().ToList();

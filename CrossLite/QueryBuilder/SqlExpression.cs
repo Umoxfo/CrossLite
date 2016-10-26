@@ -57,13 +57,13 @@ namespace CrossLite.QueryBuilder
             }
             else if (valueType.IsArray && @operator != Comparison.In && @operator != Comparison.NotIn)
             {
-                throw new ArgumentException($"The value type {nameof(@operator)} cannot compare array values.");
+                throw new ArgumentException($"The value type {@operator} cannot compare array values.");
             }
 
             // Cant use NULL values for most operators
             if ((Value == null || Value == DBNull.Value) && (@operator != Comparison.Equals && @operator != Comparison.NotEqualTo))
             {
-                throw new Exception("Cannot use comparison operator " + ((object)@operator).ToString() + " for NULL values.");
+                throw new Exception("Cannot use comparison operator " + @operator + " for NULL values.");
             }
         }
 
@@ -466,7 +466,8 @@ namespace CrossLite.QueryBuilder
                 case Comparison.LessOrEquals:
                     return $"{fieldName} <= {literal.Value}";
                 default:
-                    throw new Exception($"Cannot parse operator {nameof(ComparisonOperator)} from an SqlLiteral.");
+                    string name = Enum.GetName(typeof(Comparison), ComparisonOperator);
+                    throw new Exception($"Cannot parse operator {name} from an SqlLiteral.");
             }
         }
 
@@ -567,7 +568,8 @@ namespace CrossLite.QueryBuilder
                 case Comparison.LessOrEquals:
                     return $"{fieldName} <= {literal.Value}";
                 default:
-                    throw new Exception($"Cannot parse operator {nameof(@operator)} from an SqlLiteral.");
+                    string name = Enum.GetName(typeof(Comparison), @operator);
+                    throw new Exception($"Cannot parse operator {name} from an SqlLiteral.");
             }
         }
 
