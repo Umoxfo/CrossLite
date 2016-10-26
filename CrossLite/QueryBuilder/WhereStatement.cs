@@ -9,17 +9,17 @@ namespace CrossLite.QueryBuilder
     /// <summary>
     /// Represents a WHERE statement inside an SQL query
     /// </summary>
-    public class WhereStatement
+    public class WhereStatement : IWhereStatement
     {
         /// <summary>
         /// Gets the current Clause group in this Statement
         /// </summary>
-        public WhereClause CurrentClause { get; protected set; }
+        public WhereClause<WhereStatement> CurrentClause { get; protected set; }
 
         /// <summary>
         /// Gets a list of all Where Clauses in this statement
         /// </summary>
-        public List<WhereClause> Clauses { get; protected set; }
+        public List<WhereClause<WhereStatement>> Clauses { get; protected set; }
 
         /// <summary>
         /// Gets or Sets the Logic Operator to use in Clauses. The opposite operator
@@ -44,17 +44,12 @@ namespace CrossLite.QueryBuilder
         public AttributeQuoteKind AttributeQuoteKind { get; set; } = SQLiteContext.DefaultAttributeQuoteKind;
 
         /// <summary>
-        /// The query builder this statement is attached to if one exists
-        /// </summary>
-        internal SelectQueryBuilder Query { get; set; }
-
-        /// <summary>
         /// Creates a new instance of <see cref="WhereStatement"/>
         /// </summary>
         public WhereStatement()
         {
-            CurrentClause = new WhereClause();
-            Clauses = new List<WhereClause>() { CurrentClause };
+            CurrentClause = new WhereClause<WhereStatement>();
+            Clauses = new List<WhereClause<WhereStatement>>() { CurrentClause };
         }
 
         /// <summary>
@@ -67,13 +62,6 @@ namespace CrossLite.QueryBuilder
             AttributeQuoteKind = context.AttributeQuoteKind;
         }
 
-        public WhereStatement(SelectQueryBuilder query) : this()
-        {
-            this.Query = query;
-            AttributeQuoteMode = query.Context.AttributeQuoteMode;
-            AttributeQuoteKind = query.Context.AttributeQuoteKind;
-        }
-
         /// <summary>
         /// Ends the current active clause, and creates a new one.
         /// </summary>
@@ -82,7 +70,7 @@ namespace CrossLite.QueryBuilder
             // Create new Group
             if (CurrentClause.Expressions.Count > 0)
             {
-                CurrentClause = new WhereClause();
+                CurrentClause = new WhereClause<WhereStatement>();
                 Clauses.Add(CurrentClause);
             }
         }
@@ -101,12 +89,12 @@ namespace CrossLite.QueryBuilder
             if (InnerClauseOperator == LogicOperator.Or && HasClause)
                 this.CreateNewClause();
 
-            SqlExpression expression;
+            SqlExpression<WhereStatement> expression;
             // Convert value
             if (literal)
-                expression = new SqlExpression(fieldName, @operator, new SqlLiteral(value.ToString()), this);
+                expression = new SqlExpression<WhereStatement>(fieldName, @operator, new SqlLiteral(value.ToString()), this);
             else
-                expression = new SqlExpression(fieldName, @operator, value, this);
+                expression = new SqlExpression<WhereStatement>(fieldName, @operator, value, this);
 
             // Allow chaining
             CurrentClause.Expressions.Add(expression);
@@ -118,14 +106,14 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="fieldName">The attribute name we are performing the evaluation on</param>
         /// <returns>Returns this object to allow method chaining</returns>
-        public SqlExpression And(string fieldName)
+        public SqlExpression<WhereStatement> And(string fieldName)
         {
             // Create new Group
             if (InnerClauseOperator == LogicOperator.Or && HasClause)
                 this.CreateNewClause();
 
             // Create Expression
-            SqlExpression expression = new SqlExpression(fieldName, this);
+            var expression = new SqlExpression<WhereStatement>(fieldName, this);
             CurrentClause.Expressions.Add(expression);
 
             return expression;
@@ -146,13 +134,13 @@ namespace CrossLite.QueryBuilder
                 this.CreateNewClause();
 
             // Create Expression
-            SqlExpression expression;
+            SqlExpression<WhereStatement> expression;
 
             // Convert value
             if (literal)
-                expression = new SqlExpression(fieldName, @operator, new SqlLiteral(value.ToString()), this);
+                expression = new SqlExpression<WhereStatement>(fieldName, @operator, new SqlLiteral(value.ToString()), this);
             else
-                expression = new SqlExpression(fieldName, @operator, value, this);
+                expression = new SqlExpression<WhereStatement>(fieldName, @operator, value, this);
 
             // Allow chaining
             CurrentClause.Expressions.Add(expression);
@@ -164,14 +152,14 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="fieldName">The attribute name we are performing the evaluation on</param>
         /// <returns>Returns this object to allow method chaining</returns>
-        public SqlExpression Or(string fieldName)
+        public SqlExpression<WhereStatement> Or(string fieldName)
         {
             // Create new Group
             if (InnerClauseOperator == LogicOperator.And && HasClause)
                 this.CreateNewClause();
 
             // Create Expression
-            SqlExpression expression = new SqlExpression(fieldName, this);
+            var expression = new SqlExpression<WhereStatement>(fieldName, this);
             CurrentClause.Expressions.Add(expression);
 
             return expression;
@@ -209,14 +197,14 @@ namespace CrossLite.QueryBuilder
             Clauses.RemoveAll(x => x.Expressions.Count == 0);
 
             // Loop through each Where clause (wrapped in parenthesis)
-            foreach (WhereClause clause in Clauses)
+            foreach (var clause in Clauses)
             {
                 // Open Parent Clause grouping if we have more then 1 SubClause
                 int subCounter = 0;
                 builder.AppendIf(clause.Expressions.Count > 1 && Clauses.Count > 0, '(');
 
                 // Append each Sub Clause
-                foreach (SqlExpression expression in clause.Expressions)
+                foreach (var expression in clause.Expressions)
                 {
                     // If we have more sub clauses in this group, append operator
                     builder.AppendIf(++subCounter > 1, (InnerClauseOperator == LogicOperator.Or) ? " OR " : " AND ");
@@ -232,43 +220,5 @@ namespace CrossLite.QueryBuilder
 
             return builder.ToString();
         }
-
-        #region Re-Chaining Methods
-
-        /// <summary>
-        /// Bypasses the specified amount of records (offset) in the result set.
-        /// </summary>
-        /// <param name="">The offset in the query</param>
-        /// <returns>Returns the <see cref="SelectQueryBuilder"/> this instance is attached to, or null</returns>
-        public SelectQueryBuilder Skip(int count) => Query?.Skip(count);
-
-        /// <summary>
-        /// Specifies the maximum number of records to return in the query (limit)
-        /// </summary>
-        /// <param name="">The number of records to grab from the result set</param>
-        /// <returns>Returns the <see cref="SelectQueryBuilder"/> this instance is attached to, or null</returns>
-        public SelectQueryBuilder Take(int count) => Query?.Take(count);
-
-        /// <summary>
-        /// Adds an OrderBy clause to the current query object
-        /// </summary>
-        /// <param name="clause"></param>
-        /// /// <returns>Returns the <see cref="SelectQueryBuilder"/> this instance is attached to, or null</returns>
-        public SelectQueryBuilder OrderBy(OrderByClause clause) => Query?.OrderBy(clause);
-
-        /// <summary>
-        /// Creates and adds a new Oderby clause to the current query object
-        /// </summary>
-        /// <param name="fieldName"></param>
-        /// <param name="order"></param>
-        public SelectQueryBuilder OrderBy(string fieldName, Sorting order) => Query?.OrderBy(fieldName, order);
-
-        /// <summary>
-        /// Creates and adds a new Groupby clause to the current query object
-        /// </summary>
-        /// <param name="fieldName"></param>
-        public SelectQueryBuilder GroupBy(string fieldName) => Query?.GroupBy(fieldName);
-
-        #endregion
     }
 }

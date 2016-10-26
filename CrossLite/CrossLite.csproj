@@ -96,6 +96,7 @@
     <Compile Include="QueryBuilder\Enums\LogicOperator.cs" />
     <Compile Include="QueryBuilder\Enums\Sorting.cs" />
     <Compile Include="QueryBuilder\Enums\ValueMode.cs" />
+    <Compile Include="QueryBuilder\IWhereStatement.cs" />
     <Compile Include="QueryBuilder\JoinExpression.cs" />
     <Compile Include="QueryBuilder\ColumnSelector.cs" />
     <Compile Include="QueryBuilder\InsertQueryBuilder.cs" />
@@ -103,6 +104,7 @@
     <Compile Include="QueryBuilder\NonQueryBuilder.cs" />
     <Compile Include="QueryBuilder\OrderByClause.cs" />
     <Compile Include="QueryBuilder\SelectQueryBuilder.cs" />
+    <Compile Include="QueryBuilder\SelectWhereStatement.cs" />
     <Compile Include="QueryBuilder\SqlLiteral.cs" />
     <Compile Include="QueryBuilder\UnionStatement.cs" />
     <Compile Include="QueryBuilder\UpdateQueryBuilder.cs" />

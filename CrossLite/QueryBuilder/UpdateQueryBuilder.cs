@@ -131,7 +131,7 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="column">The column name</param>
         /// <returns></returns>
-        public SqlExpression Where(string column)
+        public SqlExpression<WhereStatement> Where(string column)
         {
             if (WhereStatement.InnerClauseOperator == LogicOperator.And)
                 return WhereStatement.And(column);
@@ -205,10 +205,11 @@ namespace CrossLite.QueryBuilder
                 else
                 {
                     if (column.Value.Mode == ValueMode.Set)
-                        query.AppendFormat("{0} = {1}", Context.QuoteAttribute(column.Key), SqlExpression.FormatSQLValue(column.Value.Value));
+                        query.AppendFormat("{0} = {1}",
+                            Context.QuoteAttribute(column.Key), SqlExpression<WhereStatement>.FormatSQLValue(column.Value.Value));
                     else
-                        query.AppendFormat("{0} = {0} {1} {2}", Context.QuoteAttribute(column.Key), 
-                            GetSign(column.Value.Mode), SqlExpression.FormatSQLValue(column.Value.Value));
+                        query.AppendFormat("{0} = {0} {1} {2}", Context.QuoteAttribute(column.Key),
+                            GetSign(column.Value.Mode), SqlExpression<WhereStatement>.FormatSQLValue(column.Value.Value));
                 }
             }
 

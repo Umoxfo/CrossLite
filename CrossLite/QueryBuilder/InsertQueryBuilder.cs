@@ -123,7 +123,7 @@ namespace CrossLite.QueryBuilder
                 else
                 {
                     query.Append(Context.QuoteAttribute(Item.Key));
-                    values.Append(SqlExpression.FormatSQLValue(Item.Value));
+                    values.Append(SqlExpression<WhereStatement>.FormatSQLValue(Item.Value));
                 }
             }
 

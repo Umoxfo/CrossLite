@@ -32,6 +32,7 @@ namespace CrossLite.QueryBuilder
         public DeleteQueryBuilder(SQLiteContext context)
         {
             this.Context = context;
+            this.WhereStatement = new WhereStatement(context);
         }
 
         /// <summary>
@@ -68,7 +69,7 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="column">The column name</param>
         /// <returns></returns>
-        public SqlExpression Where(string column)
+        public SqlExpression<WhereStatement> Where(string column)
         {
             if (WhereStatement.InnerClauseOperator == LogicOperator.And)
                 return WhereStatement.And(column);

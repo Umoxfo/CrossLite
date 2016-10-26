@@ -92,12 +92,12 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// The Where statement for this query
         /// </summary>
-        public WhereStatement WhereStatement { get; set; }
+        public SelectWhereStatement WhereStatement { get; set; }
 
         /// <summary>
         /// The Having statement for this query
         /// </summary>
-        public WhereStatement HavingStatement { get; set; }
+        public SelectWhereStatement HavingStatement { get; set; }
 
         /// <summary>
         /// Specifies the number of rows to return, after processing the OFFSET clause.
@@ -142,8 +142,8 @@ namespace CrossLite.QueryBuilder
             this.TableAliases = new Dictionary<string, string>();
 
             // Set qouting modes
-            this.WhereStatement = new WhereStatement(this);
-            this.HavingStatement = new WhereStatement(this);
+            this.WhereStatement = new SelectWhereStatement(this);
+            this.HavingStatement = new SelectWhereStatement(this);
         }
 
         #region Select Cols
@@ -501,7 +501,7 @@ namespace CrossLite.QueryBuilder
         /// <param name="operator">The Comaparison Operator to use</param>
         /// <param name="compareValue">The value, for the column name and comparison operator</param>
         /// <returns></returns>
-        public WhereStatement Where(string field, Comparison @operator, object compareValue)
+        public SelectWhereStatement Where(string field, Comparison @operator, object compareValue)
         {
             if (WhereStatement.InnerClauseOperator == LogicOperator.And)
                 return WhereStatement.And(field, @operator, compareValue);
@@ -514,7 +514,7 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="field">The column name</param>
         /// <returns></returns>
-        public SqlExpression Where(string field)
+        public SqlExpression<SelectWhereStatement> Where(string field)
         {
             if (WhereStatement.InnerClauseOperator == LogicOperator.And)
                 return WhereStatement.And(field);
@@ -566,7 +566,7 @@ namespace CrossLite.QueryBuilder
 
         #region Having
 
-        public WhereStatement Having(string field, Comparison @operator, object compareValue)
+        public SelectWhereStatement Having(string field, Comparison @operator, object compareValue)
         {
             if (HavingStatement.InnerClauseOperator == LogicOperator.And)
                 return HavingStatement.And(field, @operator, compareValue);
@@ -851,7 +851,7 @@ namespace CrossLite.QueryBuilder
                         string fromT = TableAliases.ContainsKey(clause.FromTable) ? TableAliases[clause.FromTable] : clause.FromTable;
                         query.Append(" ON ");
                         query.Append(
-                            SqlExpression.CreateExpressionString(
+                            SqlExpression<WhereStatement>.CreateExpressionString(
                                 $"{alias}.{Context.QuoteAttribute(clause.JoiningColumn)}",
                                 clause.ComparisonOperator,
                                 new SqlLiteral(Context.QuoteAttribute($"{fromT}.{clause.FromColumn}"))

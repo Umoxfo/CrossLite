@@ -21,7 +21,7 @@ namespace CrossLite.CodeFirst
 
         protected TableMapping ChildTable { get; set; }
 
-        protected WhereStatement Statement { get; set; } 
+        protected SelectWhereStatement Statement { get; set; } 
 
         /// <summary>
         /// Creates a new Instance of <see cref="ForeignKey{TEntity}"/>
@@ -63,7 +63,7 @@ namespace CrossLite.CodeFirst
         public void Refresh()
         {
             // Create new WHERE Statement
-            Statement = new WhereStatement();
+            Statement = new SelectWhereStatement();
 
             // Fill up the WhereStatement with joining keys specific to this Child
             // entities instance

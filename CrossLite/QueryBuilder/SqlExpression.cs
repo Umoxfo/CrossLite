@@ -9,7 +9,7 @@ namespace CrossLite.QueryBuilder
     /// <summary>
     /// This object represents an SQL expression within a Where clause.
     /// </summary>
-    public class SqlExpression
+    public class SqlExpression<TWhere> where TWhere : IWhereStatement
     {
         /// <summary>
         /// The column name for this expression
@@ -29,7 +29,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// The <see cref="WhereStatement"/> that this expression is attached to
         /// </summary>
-        protected WhereStatement Statement;
+        protected TWhere Statement;
 
         /// <summary>
         /// Creates a new instance of <see cref="SqlExpression"/>
@@ -39,7 +39,7 @@ namespace CrossLite.QueryBuilder
         /// <param name="value">The value of this expression comparison.</param>
         /// <param name="statement">The <see cref="WhereStatement"/> we are attached to. This
         /// allows chaining methods easily.</param>
-        public SqlExpression(string fieldName, Comparison @operator, object value, WhereStatement statement)
+        public SqlExpression(string fieldName, Comparison @operator, object value, TWhere statement)
         {
             // Set property values
             this.FieldName = fieldName;
@@ -73,7 +73,7 @@ namespace CrossLite.QueryBuilder
         /// <param name="fieldName">The field (column) name we are expressing</param>
         /// <param name="statement">The <see cref="WhereStatement"/> we are attached to. This
         /// allows chaining methods easily.</param>
-        public SqlExpression(string fieldName, WhereStatement statement)
+        public SqlExpression(string fieldName, TWhere statement)
         {
             this.FieldName = fieldName;
             this.Statement = statement;
@@ -82,7 +82,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with an Equal operator
         /// </summary>
-        public WhereStatement Equals(string value)
+        public TWhere Equals(string value)
         {
             ComparisonOperator = Comparison.Equals;
             Value = value;
@@ -92,7 +92,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with an Equal operator
         /// </summary>
-        public WhereStatement Equals<T>(T value) where T : struct
+        public TWhere Equals<T>(T value) where T : struct
         {
             ComparisonOperator = Comparison.Equals;
             Value = value;
@@ -102,7 +102,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with an Not equal operator
         /// </summary>
-        public WhereStatement NotEqualTo(string value)
+        public TWhere NotEqualTo(string value)
         {
             ComparisonOperator = Comparison.NotEqualTo;
             Value = value;
@@ -112,7 +112,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with an Not equal operator
         /// </summary>
-        public WhereStatement NotEqualTo<T>(T value) where T : struct
+        public TWhere NotEqualTo<T>(T value) where T : struct
         {
             ComparisonOperator = Comparison.NotEqualTo;
             Value = value;
@@ -122,7 +122,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with a Simple pattern matching operator
         /// </summary>
-        public WhereStatement Like(string value)
+        public TWhere Like(string value)
         {
             ComparisonOperator = Comparison.Like;
             Value = value;
@@ -132,7 +132,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with a Negation of simple pattern matching
         /// </summary>
-        public WhereStatement NotLike(string value)
+        public TWhere NotLike(string value)
         {
             ComparisonOperator = Comparison.NotLike;
             Value = value;
@@ -142,7 +142,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with a Greater than or equal operator
         /// </summary>
-        public WhereStatement GreaterOrEquals<T>(T value) where T : struct
+        public TWhere GreaterOrEquals<T>(T value) where T : struct
         {
             ComparisonOperator = Comparison.GreaterOrEquals;
             Value = value;
@@ -152,7 +152,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with a Greater than operator
         /// </summary>
-        public WhereStatement GreaterThan<T>(T value) where T : struct
+        public TWhere GreaterThan<T>(T value) where T : struct
         {
             ComparisonOperator = Comparison.GreaterThan;
             Value = value;
@@ -162,7 +162,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with a Less than or equal operator
         /// </summary>
-        public WhereStatement LessOrEquals<T>(T value) where T : struct
+        public TWhere LessOrEquals<T>(T value) where T : struct
         {
             ComparisonOperator = Comparison.LessOrEquals;
             Value = value;
@@ -172,7 +172,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression with a Less than operator
         /// </summary>
-        public WhereStatement LessThan<T>(T value) where T : struct
+        public TWhere LessThan<T>(T value) where T : struct
         {
             ComparisonOperator = Comparison.LessThan;
             Value = value;
@@ -182,7 +182,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is within a set of values
         /// </summary>
-        public WhereStatement In(params string[] values)
+        public TWhere In(params string[] values)
         {
             ComparisonOperator = Comparison.In;
             Value = values;
@@ -192,7 +192,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is within a set of values
         /// </summary>
-        public WhereStatement In<T>(params T[] values) where T : struct
+        public TWhere In<T>(params T[] values) where T : struct
         {
             ComparisonOperator = Comparison.In;
             Value = values;
@@ -202,7 +202,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is within a set of values
         /// </summary>
-        public WhereStatement In(IEnumerable<string> values)
+        public TWhere In(IEnumerable<string> values)
         {
             ComparisonOperator = Comparison.In;
             Value = values;
@@ -212,7 +212,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is within a set of values
         /// </summary>
-        public WhereStatement In<T>(IEnumerable<T> values) where T : struct
+        public TWhere In<T>(IEnumerable<T> values) where T : struct
         {
             ComparisonOperator = Comparison.NotIn;
             Value = values;
@@ -222,7 +222,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is not within a set of values
         /// </summary>
-        public WhereStatement NotIn(params string[] values)
+        public TWhere NotIn(params string[] values)
         {
             ComparisonOperator = Comparison.NotIn;
             Value = values;
@@ -232,7 +232,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is not within a set of values
         /// </summary>
-        public WhereStatement NotIn<T>(params T[] values) where T : struct
+        public TWhere NotIn<T>(params T[] values) where T : struct
         {
             ComparisonOperator = Comparison.NotIn;
             Value = values;
@@ -242,7 +242,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is not within a set of values
         /// </summary>
-        public WhereStatement NotIn(IEnumerable<string> values)
+        public TWhere NotIn(IEnumerable<string> values)
         {
             ComparisonOperator = Comparison.NotIn;
             Value = values;
@@ -252,7 +252,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is not within a set of values
         /// </summary>
-        public WhereStatement NotIn<T>(IEnumerable<T> values) where T : struct
+        public TWhere NotIn<T>(IEnumerable<T> values) where T : struct
         {
             ComparisonOperator = Comparison.NotIn;
             Value = values;
@@ -262,7 +262,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is within a range of values
         /// </summary>
-        public WhereStatement Between<T>(T value1, T value2) where T : struct
+        public TWhere Between<T>(T value1, T value2) where T : struct
         {
             ComparisonOperator = Comparison.Between;
             Value = new T[] { value1, value2 };
@@ -272,7 +272,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the comparison of this expression is not within a range of values
         /// </summary>
-        public WhereStatement NotBetween<T>(T value1, T value2) where T : struct
+        public TWhere NotBetween<T>(T value1, T value2) where T : struct
         {
             ComparisonOperator = Comparison.NotBetween;
             Value = new T[] { value1, value2 };
@@ -426,7 +426,8 @@ namespace CrossLite.QueryBuilder
                     builder.Append(parameters[0].ParameterName).Append(" AND ").Append(parameters[1].ParameterName);
                     return builder.ToString();
                 default:
-                    throw new Exception($"The operator {nameof(ComparisonOperator)} does not support multiple SQLiteParameters.");
+                    string name = Enum.GetName(typeof(Comparison), ComparisonOperator);
+                    throw new Exception($"The operator {name} does not support multiple SQLiteParameters.");
             }
         }
 
