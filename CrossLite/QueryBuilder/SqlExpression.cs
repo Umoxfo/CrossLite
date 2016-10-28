@@ -406,7 +406,8 @@ namespace CrossLite.QueryBuilder
                 default:
                 case Comparison.Between:
                 case Comparison.NotBetween:
-                    throw new Exception($"The operator {nameof(ComparisonOperator)} does not support just 1 SQLiteParameter.");
+                    string name = Enum.GetName(typeof(Comparison), ComparisonOperator);
+                    throw new Exception($"The operator {name} does not support just 1 SQLiteParameter.");
             }
         }
 

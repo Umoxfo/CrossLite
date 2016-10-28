@@ -73,13 +73,7 @@ namespace CrossLite
         /// <summary>
         /// Gets the name of the Auto Increment attribute, or NULL
         /// </summary>
-        public string AutoIncrementAttribute
-        {
-            get
-            {
-                return (from x in Columns where x.Value.AutoIncrement select x.Key).FirstOrDefault();
-            }
-        }
+        public AttributeInfo AutoIncrementAttribute { get; internal set; }
 
         /// <summary>
         /// Creates a new instance of <see cref="TableMapping"/>
@@ -159,11 +153,12 @@ namespace CrossLite
                         }
                         else if (attrType == typeof(AutoIncrementAttribute))
                         {
-                            // Cannot have more than 1
+                            // Cannot have more than 1 auto increment column
                             if (hasAutoIncrement)
                                 throw new EntityException($"Entity `{EntityType.Name}` cannot contain multiple AutoIncrement attributes.");
 
-                            // set value
+                            // set values
+                            AutoIncrementAttribute = info;
                             info.AutoIncrement = true;
                             hasAutoIncrement = true;
                         }

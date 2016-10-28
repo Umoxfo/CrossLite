@@ -29,6 +29,11 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public WhereStatement WhereStatement { get; set; }
 
+        /// <summary>
+        /// Creates a new instance of <see cref="DeleteQueryBuilder"/> using the
+        /// specified <see cref="SQLiteContext"/>
+        /// </summary>
+        /// <param name="context"></param>
         public DeleteQueryBuilder(SQLiteContext context)
         {
             this.Context = context;

@@ -85,7 +85,7 @@ namespace CrossLite
         public void Add(TEntity obj)
         {
             // For fetching the RowID
-            bool useRowId = false;
+            bool hasInsertId = false;
             AttributeInfo pk = null;
 
             // Generate the SQL
@@ -102,7 +102,7 @@ namespace CrossLite
                     // This will cause the key to perform an Auto Increment
                     if (attribute.Value.AutoIncrement || (EntityTable.HasPrimaryKey && info.PropertyType.IsNumericType()))
                     {
-                        useRowId = true;
+                        hasInsertId = true;
                         pk = attribute.Value;
                         continue;
                     }
@@ -120,7 +120,7 @@ namespace CrossLite
             {
                 // If we have a Primary key that is determined database side,
                 // than we can update the current object's key value here
-                if (useRowId)
+                if (hasInsertId)
                 {
                     long rowId = Context.Connection.LastInsertRowId;
                     pk.Property.SetValue(obj, Convert.ChangeType(rowId, pk.Property.PropertyType));

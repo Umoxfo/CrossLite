@@ -132,7 +132,7 @@ namespace CrossLite.QueryBuilder
         #endregion
 
         /// <summary>
-        /// Creates a new instance of SelectQueryBuilder with the provided SQLite connection.
+        /// Creates a new instance of <see cref="SelectQueryBuilder"/> with the provided SQLite connection.
         /// </summary>
         /// <param name="context">The SQLiteContext that will be used to build and query this SQL statement</param>
         public SelectQueryBuilder(SQLiteContext context)
