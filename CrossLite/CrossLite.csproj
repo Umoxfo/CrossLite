@@ -70,6 +70,11 @@
     <Compile Include="CodeFirst\Attributes\AutoIncrementAttribute.cs" />
     <Compile Include="CodeFirst\Attributes\CollationAttribute.cs" />
     <Compile Include="CodeFirst\Extensions\CodeFirstSQLite.cs" />
+    <Compile Include="Collections\Comparer2.cs" />
+    <Compile Include="Collections\DictionaryEnumerator.cs" />
+    <Compile Include="Collections\IOrderedDictionary.cs" />
+    <Compile Include="Collections\KeyedCollection2.cs" />
+    <Compile Include="Collections\OrderedDictionary.cs" />
     <Compile Include="ColumnAttribute.cs" />
     <Compile Include="CodeFirst\Attributes\CompositeUniqueAttribute.cs" />
     <Compile Include="CodeFirst\Attributes\DefaultAttribute.cs" />
@@ -84,6 +89,7 @@
     <Compile Include="DbSet.cs" />
     <Compile Include="EntityCache.cs" />
     <Compile Include="EntityException.cs" />
+    <Compile Include="Extensions\DictionaryExt.cs" />
     <Compile Include="IdentifierQuoteMode.cs" />
     <Compile Include="Extensions\StringBuilderExtensions.cs" />
     <Compile Include="Extensions\TypeExtensions.cs" />
@@ -100,7 +106,7 @@
     <Compile Include="QueryBuilder\Enums\ValueMode.cs" />
     <Compile Include="QueryBuilder\IWhereStatement.cs" />
     <Compile Include="QueryBuilder\JoinExpression.cs" />
-    <Compile Include="QueryBuilder\ColumnSelector.cs" />
+    <Compile Include="QueryBuilder\ColumnIdentifier.cs" />
     <Compile Include="QueryBuilder\InsertQueryBuilder.cs" />
     <Compile Include="QueryBuilder\JoinClause.cs" />
     <Compile Include="QueryBuilder\NonQueryBuilder.cs" />
@@ -108,6 +114,7 @@
     <Compile Include="QueryBuilder\SelectQueryBuilder.cs" />
     <Compile Include="QueryBuilder\SelectWhereStatement.cs" />
     <Compile Include="QueryBuilder\SqlLiteral.cs" />
+    <Compile Include="QueryBuilder\TableIndentifier.cs" />
     <Compile Include="QueryBuilder\UnionStatement.cs" />
     <Compile Include="QueryBuilder\UpdateQueryBuilder.cs" />
     <Compile Include="CodeFirst\ForeignKey.cs" />

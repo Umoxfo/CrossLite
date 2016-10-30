@@ -5,7 +5,7 @@
         /// <summary>
         /// The field being ordered by
         /// </summary>
-        public string FieldName { get; protected set; }
+        public string ColumnName { get; protected set; }
 
         /// <summary>
         /// The direction in which the field is being sorted
@@ -18,7 +18,7 @@
         /// <param name="field">The field being ordered</param>
         public OrderByClause(string field)
         {
-            this.FieldName = field;
+            this.ColumnName = field;
             this.SortOrder = Sorting.Ascending;
         }
 
@@ -29,7 +29,7 @@
         /// <param name="order">The sorting direction of the field</param>
         public OrderByClause(string field, Sorting order)
         {
-            this.FieldName = field;
+            this.ColumnName = field;
             this.SortOrder = order;
         }
     }

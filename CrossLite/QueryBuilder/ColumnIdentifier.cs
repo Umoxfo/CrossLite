@@ -4,12 +4,12 @@ using System.Text;
 namespace CrossLite.QueryBuilder
 {
     /// <summary>
-    /// Represents a column selection in a SELECT query
+    /// Represents a column identifier in a SELECT query
     /// </summary>
-    public sealed class ColumnSelector
+    public sealed class ColumnIdentifier
     {
         /// <summary>
-        /// The name of the attribute or column
+        /// The name of the column
         /// </summary>
         public string Name { get; set; }
 
@@ -30,7 +30,13 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public bool Escape { get; set; } = true;
 
-        public ColumnSelector(string name, string alias = null, bool escape = true)
+        /// <summary>
+        /// Creates a new instance of <see cref="ColumnIdentifier"/>
+        /// </summary>
+        /// <param name="name">The indetifier column name</param>
+        /// <param name="alias">The indetifier column alias</param>
+        /// <param name="escape">Indication whether this indetifier is quoted or not.</param>
+        public ColumnIdentifier(string name, string alias = null, bool escape = true)
         {
             Name = name;
             Alias = alias;

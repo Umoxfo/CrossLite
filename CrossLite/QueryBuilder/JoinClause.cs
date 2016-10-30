@@ -46,12 +46,7 @@ namespace CrossLite.QueryBuilder
         /// <summary>
         /// Specifies the Joining Table Name
         /// </summary>
-        public string JoiningTable { get; internal set; }
-
-        /// <summary>
-        /// Specifies the Joining Table's Alias
-        /// </summary>
-        public string JoiningTableAlias { get; set; } = "";
+        public TableIndentifier JoiningTable { get; internal set; }
 
         /// <summary>
         /// Specifies the Joining Table Comparison Field
@@ -63,7 +58,7 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="join">Specifies the Type of Join statement this is.</param>
         /// <param name="joiningTable">The Joining Table name</param>
-        public JoinClause(SelectQueryBuilder queryBuilder, JoinType join, string joiningTable)
+        public JoinClause(SelectQueryBuilder queryBuilder, JoinType join, TableIndentifier joiningTable)
         {
             this.JoinType = join;
             this.JoiningTable = joiningTable;
@@ -78,8 +73,7 @@ namespace CrossLite.QueryBuilder
         /// <returns></returns>
         public JoinClause As(string tableAlias)
         {
-            Query.TableAliases[JoiningTable] = tableAlias;
-            this.JoiningTableAlias = tableAlias;
+            JoiningTable.Alias = tableAlias;
             return this;
         }
 

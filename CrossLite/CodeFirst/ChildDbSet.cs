@@ -54,7 +54,7 @@ namespace CrossLite.CodeFirst
                 
                 // Begin a new Select Query
                 SelectQueryBuilder query = new SelectQueryBuilder(context);
-                query.From(childTable.TableName).Select(childTable.Columns.Keys);
+                query.From(childTable.TableName).SelectAll();
 
                 // Grab the foreign key constraints
                 var fkinfos = childTable.ForeignKeys.Where(x => x.ParentEntityType == parentTable.EntityType);

@@ -13,6 +13,15 @@ namespace CrossLiteTester
         [Column, Required, Collation(Collation.NoCase)]
         public string Name { get; set; }
 
+        [Column]
+        public int Col1 { get; set; }
+
+        [Column]
+        public int Col2 { get; set; }
+
+        [Column]
+        public int Col3 { get; set; }
+
         /// <summary>
         /// Test enumeration
         /// </summary>

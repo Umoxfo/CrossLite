@@ -75,19 +75,18 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public string Table
         {
-            get { return (SelectedItems.Count > 0) ? SelectedItems.Keys[0] : null;  }
+            get { return (Tables.Count > 0) ? Tables[0].Name : null;  }
             set { From(value); }
         }
 
         /// <summary>
-        /// Gets a sorted list of (TableName => SelectedColumns[ColumnName => ColumnData])
+        /// Gets a sorted list of (TableName => SelectedIdentifiers[ColumnName => Identifier])
         /// </summary>
-        public SortedList<string, SortedList<string, ColumnSelector>> SelectedItems { get; set; }
-
-        /// <summary>
-        /// Gets a sorted list of (TableName => Alias)
-        /// </summary>
-        internal Dictionary<string, string> TableAliases { get; set; }
+        /// <remarks>
+        /// We use a SortedLists instead of dictionaries because we need to be able to access
+        /// values by their index, something Dictionaries cannot do efficiently.
+        /// </remarks>
+        public List<TableIndentifier> Tables { get; set; }
 
         /// <summary>
         /// The Where statement for this query
@@ -129,6 +128,13 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public List<UnionStatement> Unions { get; set; } = new List<UnionStatement>(2);
 
+        /// <summary>
+        /// Gets or sets the next column index since the last As() or Select*() method call. This
+        /// counter is used for the .As() method to track when to begin the selection of
+        /// columns
+        /// </summary>
+        private int NextAliasIndex { get; set; } = 0;
+
         #endregion
 
         /// <summary>
@@ -138,8 +144,7 @@ namespace CrossLite.QueryBuilder
         public SelectQueryBuilder(SQLiteContext context)
         {
             this.Context = context;
-            this.SelectedItems = new SortedList<string, SortedList<string, ColumnSelector>>();
-            this.TableAliases = new Dictionary<string, string>();
+            this.Tables = new List<TableIndentifier>();
 
             // Set qouting modes
             this.WhereStatement = new SelectWhereStatement(this);
@@ -153,11 +158,14 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         public SelectQueryBuilder SelectAll()
         {
-            if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
+            // No columns in the selection list equal select all
+            if (Tables.Count == 0)
+                Tables.Add(new TableIndentifier("", null));
             else
-                SelectedItems.Values[SelectedItems.Count - 1].Clear();
-            
+                Tables.Last().Columns.Clear();
+
+            // Skip this identifier since we can't alias a multi-select
+            NextAliasIndex++;
             return this;
         }
 
@@ -169,11 +177,19 @@ namespace CrossLite.QueryBuilder
         public SelectQueryBuilder SelectColumn(string column, string alias = null, bool escape = true)
         {
             // Ensure created with main table index
-            if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
+            if (Tables.Count == 0)
+                Tables.Add(new TableIndentifier("", null));
+
+            // Grab the current working table
+            var table = Tables.Last();
+
+            // Update next alias index
+            NextAliasIndex = table.Columns.Count;
 
             // Add item to list
-            SelectedItems.Values[SelectedItems.Count - 1][column] = new ColumnSelector(column, alias, escape);
+            table.Columns[column] = new ColumnIdentifier(column, alias, escape);
+
+            // Allow chaining
             return this;
         }
 
@@ -184,16 +200,21 @@ namespace CrossLite.QueryBuilder
         public SelectQueryBuilder Select(params string[] columns)
         {
             // Make sure the array isnt empty...
-            if (columns.Length == 0) return this;
+            if (columns.Count() == 0) return this;
 
             // Ensure created with main table index
-            if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
+            if (Tables.Count == 0)
+                Tables.Add(new TableIndentifier("", null));
 
-            // Add columns to the list
-            var table = SelectedItems.Values[SelectedItems.Count - 1];
+            // Grab the current working table
+            var table = Tables.Last();
+
+            // Update next alias index
+            NextAliasIndex = table.Columns.Count;
+
+            // Add columns
             foreach (string col in columns)
-                table[col] = new ColumnSelector(col);
+                table.Columns[col] = new ColumnIdentifier(col);
 
             // Allow chaining
             return this;
@@ -209,13 +230,18 @@ namespace CrossLite.QueryBuilder
             if (columns.Count() == 0) return this;
 
             // Ensure created with main table index
-            if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
+            if (Tables.Count == 0)
+                Tables.Add(new TableIndentifier("", null));
 
-            // Add columns to the list
-            var table = SelectedItems.Values[SelectedItems.Count - 1];
+            // Grab the current working table
+            var table = Tables.Last();
+
+            // Update next alias index
+            NextAliasIndex = table.Columns.Count;
+
+            // Add columns
             foreach (string col in columns)
-                table[col] = new ColumnSelector(col);
+                table.Columns[col] = new ColumnIdentifier(col);
 
             // Allow chaining
             return this;
@@ -235,8 +261,8 @@ namespace CrossLite.QueryBuilder
         internal SelectQueryBuilder Aggregate(string column, string alias, AggregateFunction type)
         {
             // Ensure created with main table index
-            if (SelectedItems.Count == 0)
-                SelectedItems.Add(Table ?? "", new SortedList<string, ColumnSelector>());
+            if (Tables.Count == 0)
+                Tables.Add(new TableIndentifier("", null));
 
             // Ensure the column name is correct
             if (String.IsNullOrWhiteSpace(column))
@@ -259,9 +285,15 @@ namespace CrossLite.QueryBuilder
                 throw new ArgumentException($"Cannot use a wildcard in place of an column name for the aggregate '{name}'", "type");
             }
 
+            // Grab the current working table
+            var table = Tables.Last();
+
+            // Update insertion count
+            NextAliasIndex = table.Columns.Count;
+
             // Get column key and Add item to list
-            string key = String.Format(ColumnSelector.GetAggregateString(type), column);
-            SelectedItems.Values[SelectedItems.Count - 1][key] = new ColumnSelector(column, alias, true)
+            string key = String.Format(ColumnIdentifier.GetAggregateString(type), column);
+            table.Columns[key] = new ColumnIdentifier(column, alias, true)
             {
                 Aggregate = type
             };
@@ -334,13 +366,16 @@ namespace CrossLite.QueryBuilder
                 throw new ArgumentNullException("Tablename cannot be null or empty!", "table");
 
             // Ensure created with main table index
-            if (SelectedItems.Count == 0)
-                SelectedItems.Add(table, new SortedList<string, ColumnSelector>());
+            if (Tables.Count == 0)
+            {
+                Tables.Add(new TableIndentifier(table, alias));
+            }
             else
-                SelectedItems.Keys[0] = table;
+            {
+                Tables[0].Name = table;
+                Tables[0].Alias = alias;
+            }
 
-            // Add alias
-            TableAliases[table] = alias;
             return this;
         }
 
@@ -349,50 +384,90 @@ namespace CrossLite.QueryBuilder
         #region Alias
 
         /// <summary>
-        /// Temporarily assigns a table column a new name for this query.
-        /// Column names will be aliased by the order they were recieved.
+        /// Assigns a column identifier an alias name for this query.
+        /// Columns will be aliased by the order they specified in the
+        /// last Select*() method.
         /// </summary>
         /// <param name="names"></param>
-        /// <returns></returns>
+        /// <remarks>This is an O(1) operation.</remarks>
         public SelectQueryBuilder As(params string[] names)
         {
-            // Make sure we have an item for crying out loud!
-            if (SelectedItems.Count == 0)
-                throw new Exception("Method call on \"AS\" not valid on a blank query! Please select some columns first!");
+            // Attempt to grab working table
+            var table = Tables.LastOrDefault();
 
-            // grab our table, and make sure the count is good
-            var item = SelectedItems.Last();
-            var tName = item.Key;
-            var cols = item.Value;
-            if (names.Length > cols.Count)
-                throw new Exception($"Parameter count larger than selected column count on table \"{tName}\"");
+            // Make sure we have a table and some columns
+            if (table == null || table.Columns.Count == 0)
+                throw new Exception("Method call on \"AS\" not valid on a blank query! Please select a table and some columns first!");
+
+            // Make sure the count is good
+            if (names.Length > (table.Columns.Count - NextAliasIndex))
+                throw new Exception($"Parameter count larger than the last selected column count on table \"{table.Name}\"");
 
             // Add the aliases
-            int i = 0;
             foreach (string name in names)
-                cols.Values[i++].Alias = name;
+                table.Columns[NextAliasIndex++].Alias = name;
 
             return this;
         }
 
         /// <summary>
-        /// Temporarily assigns a table column a new name for this query.
+        /// Assigns a column indentifier an alias.
         /// </summary>
-        /// <param name="index">The index at which the column name was added to this table.</param>
-        /// <param name="name">The new alias name</param>
+        /// <param name="name">The indentifier name.</param>
+        /// <param name="alias">The new alias name</param>
         /// <returns></returns>
-        public SelectQueryBuilder Alias(int index, string name)
+        public SelectQueryBuilder Alias(string name, string alias)
         {
             // Ensure we are not null
-            if (String.IsNullOrWhiteSpace(name))
+            if (String.IsNullOrWhiteSpace(alias))
+                throw new ArgumentNullException("alias");
+            else if (String.IsNullOrWhiteSpace(name))
                 throw new ArgumentNullException("name");
 
             // Make sure we have an item for crying out loud!
-            if (SelectedItems.Count == 0)
+            if (Tables.Count == 0)
                 throw new Exception("Method call on \"Alias\" not valid on a blank query! Please select some columns first!");
 
+            // Local variables
+            var table = Tables.Last();
+
+            // ensure the column name exists!
+            if (!table.Columns.ContainsKey(name))
+                throw new ArgumentException($"The indentifier \"{name}\" has not been selected!");
+
             // Set alias on item
-            SelectedItems.Values.Last().Values[index].Alias = name;
+            table.Columns[name].Alias = alias;
+            return this;
+        }
+
+        /// <summary>
+        /// Assigns a column indentifier an alias. Unlike the <see cref="As(string[])"/>
+        /// method, the specified index must be the index at which the column name was added to this table.
+        /// </summary>
+        /// <param name="index">The index at which the column name was added to this table.</param>
+        /// <param name="alias">The new alias name</param>
+        /// <returns></returns>
+        public SelectQueryBuilder Alias(int index, string alias)
+        {
+            // Ensure we are not null
+            if (String.IsNullOrWhiteSpace(alias))
+                throw new ArgumentNullException("alias");
+
+            // Ensure we are a positive index
+            if (index < 0)
+                throw new ArgumentOutOfRangeException("index cannot be less than 0");
+
+            // Make sure we have an item for crying out loud!
+            if (Tables.Count == 0)
+                throw new Exception("Method call on \"Alias\" not valid on a blank query! Please select some columns first!");
+
+            // Make sure the count is good
+            var table = Tables.Last();
+            if (index >= table.Columns.Count)
+                throw new ArgumentOutOfRangeException("Alias index is higher than the column count!", "index");
+
+            // Set alias on item
+            table.Columns[index].Alias = alias;
             return this;
         }
 
@@ -401,33 +476,66 @@ namespace CrossLite.QueryBuilder
         /// at the specified indexes. If no arguments are suppiled, all columns
         /// in this table will not be escaped.
         /// </summary>
-        /// <param name="indexes"></param>
+        /// <param name="indexes">
+        /// The column indexies to perform a no escape on. If left empty, then all columns will not be escaped
+        /// </param>
         /// <returns></returns>
         public SelectQueryBuilder NoEscapeOn(params int[] indexes)
         {
             // Make sure we have an item for crying out loud!
-            if (SelectedItems.Count == 0)
+            if (Tables.Count == 0)
                 throw new Exception("Method call on \"NoEscape\" not valid on a blank query! Please select some columns first!");
 
             // grab our table, and make sure the count is good
-            var item = SelectedItems.Last();
-            var tName = item.Key;
-            var cols = item.Value;
+            var table = Tables.Last();
 
             // If we have specific indexes
             if (indexes.Length > 0)
             {
                 // Ensure that we aren't going over the column count
-                if (indexes.Max() > cols.Count)
-                    throw new Exception($"Max index is larger than selected column count on table \"{tName}\"");
+                if (indexes.Max() > table.Columns.Count)
+                    throw new Exception($"Max index is larger than selected column count on table \"{table.Name}\"");
 
                 foreach (int index in indexes)
-                    cols.Values[index].Escape = false;
+                    table.Columns[index].Escape = false;
             }
             else
             {
                 // No escape on all
-                foreach (ColumnSelector col in cols.Values)
+                foreach (ColumnIdentifier col in table.Columns.Values)
+                    col.Escape = false;
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        /// Tells the QueryBuilder not to escape the provided column names. 
+        /// If no arguments are suppiled, all columns in this table will not be escaped.
+        /// </summary>
+        /// <param name="columns">
+        /// The column names to perform a no escape on. If left empty, then all columns will not be escaped
+        /// </param>
+        /// <returns></returns>
+        public SelectQueryBuilder NoEscapeOn(params string[] columns)
+        {
+            // Make sure we have an item for crying out loud!
+            if (Tables.Count == 0)
+                throw new Exception("Method call on \"NoEscape\" not valid on a blank query! Please select some columns first!");
+
+            // grab our table, and make sure the count is good
+            var table = Tables.Last();
+
+            // If we have specific indexes
+            if (columns.Length > 0)
+            {
+                foreach (var name in columns)
+                    table.Columns[name].Escape = false;
+            }
+            else
+            {
+                // No escape on all
+                foreach (ColumnIdentifier col in table.Columns.Values)
                     col.Escape = false;
             }
 
@@ -439,56 +547,44 @@ namespace CrossLite.QueryBuilder
         #region Joins
 
         /// <summary>
+        /// Creates a new Join clause statement fot the current query object
+        /// </summary>
+        protected JoinClause Join(JoinType type, string joinTable)
+        {
+            // Add clause to list of joins
+            var table = new TableIndentifier(joinTable, null);
+            var clause = new JoinClause(this, type, table);
+            Joins.Add(clause);
+
+            // Add the table to the tables list, and then reset the LastInsertIndex
+            Tables.Add(table);
+            NextAliasIndex = 0;
+            return clause;
+        }
+
+        /// <summary>
         /// Creates a new Inner Join clause statement fot the current query object
         /// </summary>
         /// <param name="joinTable">The Joining Table name</param>
-        public JoinClause InnerJoin(string joinTable)
-        {
-            // Add clause to list
-            var clause = new JoinClause(this, JoinType.InnerJoin, joinTable);
-            Joins.Add(clause);
-            SelectedItems.Add(joinTable, new SortedList<string, ColumnSelector>());
-            return clause;
-        }
+        public JoinClause InnerJoin(string joinTable) => Join(JoinType.InnerJoin, joinTable);
 
         /// <summary>
         /// Creates a new Cross Join clause statement fot the current query object
         /// </summary>
         /// <param name="joinTable">The Joining Table name</param>
-        public JoinClause CrossJoin(string joinTable)
-        {
-            // Add clause to list
-            var clause = new JoinClause(this, JoinType.CrossJoin, joinTable);
-            Joins.Add(clause);
-            SelectedItems.Add(joinTable, new SortedList<string, ColumnSelector>());
-            return clause;
-        }
+        public JoinClause CrossJoin(string joinTable) => Join(JoinType.CrossJoin, joinTable);
 
         /// <summary>
         /// Creates a new Outer Join clause statement fot the current query object
         /// </summary>
         /// <param name="joinTable">The Joining Table name</param>
-        public JoinClause OuterJoin(string joinTable)
-        {
-            // Add clause to list
-            var clause = new JoinClause(this, JoinType.OuterJoin, joinTable);
-            Joins.Add(clause);
-            SelectedItems.Add(joinTable, new SortedList<string, ColumnSelector>());
-            return clause;
-        }
+        public JoinClause OuterJoin(string joinTable) => Join(JoinType.OuterJoin, joinTable);
 
         /// <summary>
         /// Creates a new Left Join clause statement fot the current query object
         /// </summary>
         /// <param name="joinTable">The Joining Table name</param>
-        public JoinClause LeftJoin(string joinTable)
-        {
-            // Add clause to list
-            var clause = new JoinClause(this, JoinType.LeftJoin, joinTable);
-            Joins.Add(clause);
-            SelectedItems.Add(joinTable, new SortedList<string, ColumnSelector>());
-            return clause;
-        }
+        public JoinClause LeftJoin(string joinTable) => Join(JoinType.LeftJoin, joinTable);
 
         #endregion Joins
 
@@ -769,11 +865,11 @@ namespace CrossLite.QueryBuilder
         protected object BuildQuery(bool buildCommand)
         {
             // Define local variables
-            int tableId = 1;
-            int tableCount = SelectedItems.Count;
+            int tableIndex = 0;
+            int tableCount = Tables.Count;
 
             // Make sure we have a table name
-            if (SelectedItems.Count == 0 || String.IsNullOrWhiteSpace(SelectedItems.Keys[0]))
+            if (Tables.Count == 0 || String.IsNullOrWhiteSpace(Tables[0].Name))
                 throw new Exception("No tables were specified for this query.");
 
             // Start Query
@@ -781,33 +877,30 @@ namespace CrossLite.QueryBuilder
             query.AppendIf(Distinct, "DISTINCT ");
 
             // Append columns from each table
-            foreach (var table in SelectedItems)
+            foreach (var table in Tables)
             {
                 // Define local variables
-                int colCount = table.Value.Count;
-                string tableName = table.Key;
-                string tableAlias = $"t{tableId++}";
+                int colCount = table.Columns.Count;
+                tableIndex++;
                 tableCount--;
 
                 // Create alias for this table if there is none
-                if (TableAliases.ContainsKey(tableName) && !String.IsNullOrWhiteSpace(TableAliases[tableName]))
-                    tableAlias = TableAliases[table.Key];
-                else
-                    TableAliases[tableName] = tableAlias;
+                if (String.IsNullOrWhiteSpace(table.Alias))
+                    table.Alias = $"t{tableIndex}";
 
                 // Check if the user wants to select all columns
                 if (colCount == 0)
                 {
-                    query.AppendFormat("{0}.*", Context.QuoteIdentifier(tableAlias));
+                    query.AppendFormat("{0}.*", Context.QuoteIdentifier(table.Alias));
                     query.AppendIf(tableCount > 0, ", ");
                 }
                 else
                 {
                     // Add each result selector to the query
-                    foreach (ColumnSelector column in table.Value.Values)
+                    foreach (ColumnIdentifier column in table.Columns.Values)
                     {
                         // Use the internal method to append the column string to our query
-                        column.AppendToQuery(query, Context, tableAlias);
+                        column.AppendToQuery(query, Context, table.Alias);
 
                         // If we have more results to select, append Comma
                         query.AppendIf(--colCount > 0 || tableCount > 0, ", ");
@@ -816,7 +909,8 @@ namespace CrossLite.QueryBuilder
             }
 
             // === Append main Table === //
-            query.Append($" FROM {Context.QuoteIdentifier(Table)} AS {Context.QuoteIdentifier(TableAliases[Table])}");
+            var fromTbl = Tables[0];
+            query.Append($" FROM {Context.QuoteIdentifier(fromTbl.Name)} AS {Context.QuoteIdentifier(fromTbl.Alias)}");
 
             // Append Joined tables
             if (Joins.Count > 0)
@@ -842,13 +936,15 @@ namespace CrossLite.QueryBuilder
                     }
 
                     // Append the join statement
-                    string alias = Context.QuoteIdentifier(TableAliases[clause.JoiningTable]);
-                    query.Append($"{Context.QuoteIdentifier(clause.JoiningTable)} AS {alias}");
+                    string alias = Context.QuoteIdentifier(clause.JoiningTable.Alias);
+                    query.Append($"{Context.QuoteIdentifier(clause.JoiningTable.Name)} AS {alias}");
 
                     // Do we have an expression?
                     if (clause.ExpressionType == JoinExpressionType.On)
                     {
-                        string fromT = TableAliases.ContainsKey(clause.FromTable) ? TableAliases[clause.FromTable] : clause.FromTable;
+                        // Try and grab the table
+                        var tbl = Tables.Where(x => x.Name.Equals(clause.FromTable, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+                        string fromT = tbl?.Alias ?? clause.FromTable;
                         query.Append(" ON ");
                         query.Append(
                             SqlExpression<WhereStatement>.CreateExpressionString(
@@ -896,7 +992,7 @@ namespace CrossLite.QueryBuilder
                 query.Append(" ORDER BY");
                 foreach (OrderByClause clause in OrderByStatements)
                 {
-                    query.Append($" {Context.QuoteIdentifier(clause.FieldName)}");
+                    query.Append($" {Context.QuoteIdentifier(clause.ColumnName)}");
 
                     // Add sorting if not default
                     query.AppendIf(clause.SortOrder == Sorting.Descending, " DESC");
