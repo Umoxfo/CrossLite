@@ -735,6 +735,10 @@ namespace CrossLite
         /// </summary>
         private static string ApplyQuotes(string value, IdentifierQuoteKind kind)
         {
+            // Don't escape wildcard
+            if (value == "*") return value;
+
+            // Apply quotes to value
             var chars = EscapeChars[kind];
             return $"{chars[0]}{value}{chars[1]}";
         }
@@ -745,13 +749,12 @@ namespace CrossLite
         /// </summary>
         private static string ApplyQuotes(string[] values, IdentifierQuoteMode mode, IdentifierQuoteKind kind)
         {
-            var chars = EscapeChars[kind];
             var builder = new StringBuilder();
             for (int i = 0; i < values.Length; i++)
             {
                 // Do we need to apply quoting to this string?
                 if (mode == IdentifierQuoteMode.All || (mode == IdentifierQuoteMode.KeywordsOnly && IsKeyword(values[i])))
-                    builder.Append($"{chars[0]}{values[i]}{chars[1]}");
+                    builder.Append(ApplyQuotes(values[i], kind));
                 else
                     builder.Append(values[i]);
 

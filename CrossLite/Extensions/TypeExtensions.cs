@@ -32,5 +32,26 @@ namespace CrossLite
             }
             return false;
         }
+
+        /// <summary>
+        /// Determines if a type is an integer type
+        /// </summary>
+        public static bool IsInteger(this Type type)
+        {
+            if (type == null)
+                return false;
+
+            switch (Type.GetTypeCode(type))
+            {
+                case TypeCode.Int16:
+                case TypeCode.Int32:
+                case TypeCode.Int64:
+                case TypeCode.UInt16:
+                case TypeCode.UInt32:
+                case TypeCode.UInt64:
+                    return true;
+            }
+            return false;
+        }
     }
 }

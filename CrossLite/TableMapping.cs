@@ -23,21 +23,26 @@ namespace CrossLite
         public string TableName { get; protected set; }
 
         /// <summary>
+        /// Gets a collection of keys on this table
+        /// </summary>
+        public IReadOnlyCollection<string> PrimaryKeys { get; protected set; }
+
+        /// <summary>
+        /// Get or sets the RowId column
+        /// </summary>
+        public AttributeInfo RowIdColumn { get; protected set; }
+
+        /// <summary>
+        /// Indicates whether this Table has a single Integer Primary Key
+        /// </summary>
+        public bool HasRowIdAlias => (!WithoutRowID && RowIdColumn != null);
+
+        /// <summary>
         /// Gets or Sets whether the "WITHOUT ROWID" command is used
         /// when creating a table using Code First 
         /// (see <see cref="SQLiteContext.CreateTable{TEntity}(bool)"/>)
         /// </summary>
         public bool WithoutRowID { get; protected set; } = false;
-
-        /// <summary>
-        /// Indicates whether this Table has a single Primary Key
-        /// </summary>
-        public bool HasPrimaryKey { get; protected set; }
-
-        /// <summary>
-        /// Gets a collection of keys on this table
-        /// </summary>
-        public IReadOnlyCollection<string> PrimaryKeys { get; protected set; }
 
         /// <summary>
         /// Gets a collection of Column to Property mappings
@@ -98,7 +103,6 @@ namespace CrossLite
             // Temporary variables
             Dictionary<string, AttributeInfo> cols = new Dictionary<string, AttributeInfo>();
             List<AttributeInfo> primaryKeys = new List<AttributeInfo>();
-            bool hasAutoIncrement = false;
 
             // Get a list of properties from the Entity that represents an Attribute
             var props = entityType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -132,6 +136,16 @@ namespace CrossLite
                         }
                         else if (attrType == typeof(PrimaryKeyAttribute))
                         {
+                            // Check for RowID Alias column (INTEGER PRIMARY KEY)
+                            if (info.Property.PropertyType.IsInteger())
+                            {
+                                if (primaryKeys.Count == 0)
+                                    RowIdColumn = info;
+                                else
+                                    RowIdColumn = null;
+                            }
+
+                            // Add primary key to the list
                             info.PrimaryKey = true;
                             primaryKeys.Add(info);
                         }
@@ -154,13 +168,12 @@ namespace CrossLite
                         else if (attrType == typeof(AutoIncrementAttribute))
                         {
                             // Cannot have more than 1 auto increment column
-                            if (hasAutoIncrement)
+                            if (AutoIncrementAttribute != null)
                                 throw new EntityException($"Entity `{EntityType.Name}` cannot contain multiple AutoIncrement attributes.");
 
                             // set values
                             AutoIncrementAttribute = info;
                             info.AutoIncrement = true;
-                            hasAutoIncrement = true;
                         }
                     }
 
@@ -204,7 +217,6 @@ namespace CrossLite
             // Set internals
             Columns = new ReadOnlyDictionary<string, AttributeInfo>(cols);
             PrimaryKeys = primaryKeys.Select(x => x.Name).ToList().AsReadOnly();
-            HasPrimaryKey = primaryKeys.Count == 1;
             List<ForeignKeyConstraint> foreignKeys = new List<ForeignKeyConstraint>();
 
             // ------------------------------------
@@ -222,14 +234,12 @@ namespace CrossLite
                 var fkey = (ForeignKeyAttribute)property.GetCustomAttribute(typeof(ForeignKeyAttribute));
                 var inverse = (InverseKeyAttribute)property.GetCustomAttribute(typeof(InverseKeyAttribute));
 
-                // Grab type
-                Type type = (property.PropertyType.IsGenericType) 
-                    ? property.PropertyType.GetGenericArguments()[0] 
-                    : property.PropertyType;
+                // Grab generic type
+                Type parentType = property.PropertyType.GetGenericArguments()[0];
 
                 // Create ForeignKeyInfo
                 InverseKeyAttribute inv = inverse ?? new InverseKeyAttribute(fkey.Attributes);
-                ForeignKeyConstraint info = new ForeignKeyConstraint(this, property.Name, type, fkey, inv);  
+                ForeignKeyConstraint info = new ForeignKeyConstraint(this, property.Name, parentType, fkey, inv);  
                 foreignKeys.Add(info);
             }
 

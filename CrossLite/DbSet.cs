@@ -78,38 +78,40 @@ namespace CrossLite
         }
 
         /// <summary>
-        /// Inserts a new Entity into the database
+        /// Inserts a new Entity into the database. If the entity table has a single
+        /// integer primary key, the primary key value will be updated with the
+        /// <see cref="SQLiteConnection.LastInsertRowId"/>
         /// </summary>
-        /// <param name="obj"></param>
-        /// <returns>The number of rows affected by this operation</returns>
+        /// <param name="obj">The <see cref="TEntity"/> object to add to the dataset</param>
         public void Add(TEntity obj)
         {
             // For fetching the RowID
-            bool hasInsertId = false;
-            AttributeInfo pk = null;
+            AttributeInfo rowid = EntityTable.RowIdColumn;
 
             // Generate the SQL
             InsertQueryBuilder builder = new InsertQueryBuilder(EntityTable.TableName, Context);
             foreach (var attribute in EntityTable.Columns)
             {
                 // Grab value
-                PropertyInfo info = attribute.Value.Property;
+                PropertyInfo property = attribute.Value.Property;
+                bool isKey = attribute.Value.PrimaryKey;
 
-                // Check for singular primary keys
-                if (EntityTable.PrimaryKeys.Contains(attribute.Key))
+                // Check for integer primary keys
+                if (isKey && EntityTable.HasRowIdAlias && EntityTable.RowIdColumn == attribute.Value)
                 {
-                    // Skip single primary keys that are Integers and do not have a value, 
-                    // This will cause the key to perform an Auto Increment
-                    if (attribute.Value.AutoIncrement || (EntityTable.HasPrimaryKey && info.PropertyType.IsNumericType()))
-                    {
-                        hasInsertId = true;
-                        pk = attribute.Value;
-                        continue;
-                    }
+                    // A column with type INTEGER PRIMARY KEY is an alias for the 
+                    // ROWID (except in WITHOUT ROWID tables). Here is check for
+                    // auto assignment
+                    long id;
+                    var value = property.GetValue(obj);
+                    if (long.TryParse(value.ToString(), out id) && id != 0)
+                        builder.Set(attribute.Key, value);
+
+                    continue;
                 }
 
                 // Add attribute to the field list
-                builder.Set(attribute.Key, info.GetValue(obj));
+                builder.Set(attribute.Key, property.GetValue(obj));
             }
 
             // Execute the SQL Command
@@ -120,10 +122,10 @@ namespace CrossLite
             {
                 // If we have a Primary key that is determined database side,
                 // than we can update the current object's key value here
-                if (hasInsertId)
+                if (EntityTable.HasRowIdAlias)
                 {
                     long rowId = Context.Connection.LastInsertRowId;
-                    pk.Property.SetValue(obj, Convert.ChangeType(rowId, pk.Property.PropertyType));
+                    rowid.Property.SetValue(obj, Convert.ChangeType(rowId, rowid.Property.PropertyType));
                 }
 
                 // Build relationships after a fresh insert
@@ -132,67 +134,28 @@ namespace CrossLite
         }
 
         /// <summary>
-        /// Inserts a new Entity into the database
+        /// Inserts a range of new Entities into the database
         /// </summary>
-        /// <param name="obj"></param>
-        /// <returns>The number of rows affected by this operation</returns>
+        /// <param name="obj">The <see cref="TEntity"/> objects to add to the dataset</param>
         public void AddRange(params TEntity[] entities)
         {
-            // For fetching the RowID
-            bool useRowId = false;
-            AttributeInfo pk = null;
+            foreach (TEntity obj in entities) Add(obj);
+        }
 
-            // Generate the SQL
-            InsertQueryBuilder builder = new InsertQueryBuilder(EntityTable.TableName, Context);
-            foreach (TEntity obj in entities)
-            {
-                foreach (var attribute in EntityTable.Columns)
-                {
-                    // Grab value
-                    PropertyInfo info = attribute.Value.Property;
-
-                    // Check for singular primary keys
-                    if (EntityTable.PrimaryKeys.Contains(attribute.Key))
-                    {
-                        // Skip single primary keys that are Integers and do not have a value, 
-                        // This will cause the key to perform an Auto Increment
-                        if (attribute.Value.AutoIncrement || (EntityTable.HasPrimaryKey && info.PropertyType.IsNumericType()))
-                        {
-                            useRowId = true;
-                            pk = attribute.Value;
-                            continue;
-                        }
-                    }
-
-                    // Add attribute to the field list
-                    builder.Set(attribute.Key, info.GetValue(obj));
-                }
-
-                // Execute the SQL Command
-                int result = builder.Execute();
-
-                // If the insert was successful, lets build our Entity relationships
-                if (result > 0)
-                {
-                    // If we have a Primary key that is determined database side,
-                    // than we can update the current object's key value here
-                    if (useRowId)
-                    {
-                        long rowId = Context.Connection.LastInsertRowId;
-                        pk.Property.SetValue(obj, Convert.ChangeType(rowId, pk.Property.PropertyType));
-                    }
-
-                    // Build relationships after a fresh insert
-                    EntityTable.CreateRelationships(obj, Context);
-                }
-            }
+        /// <summary>
+        /// Inserts a range of new Entities into the database
+        /// </summary>
+        /// <param name="collection">The <see cref="TEntity"/> objects to add to the dataset</param>
+        public void AddRange(IEnumerable<TEntity> collection)
+        {
+            foreach (TEntity obj in collection) Add(obj);
         }
 
         /// <summary>
         /// Deletes an Entity from the database
         /// </summary>
-        /// <param name="obj">The entity to remove from the database</param>
-        /// <returns>The number of rows affected by this operation</returns>
+        /// <param name="obj">The <see cref="TEntity"/> object to remove from the dataset</param>
+        /// <returns>true if an entity was removed from the dataset; false otherwise.</returns>
         public bool Remove(TEntity obj)
         {
             // Start the query using a query builder
@@ -210,12 +173,30 @@ namespace CrossLite
         }
 
         /// <summary>
+        /// Deletes a range of new Entities into the database
+        /// </summary>
+        /// <param name="obj">The <see cref="TEntity"/> objects to remove from the dataset</param>
+        public void RemoveRange(params TEntity[] entities)
+        {
+            foreach (TEntity obj in entities) Remove(obj);
+        }
+
+        /// <summary>
+        /// Deletes a range of new Entities into the database
+        /// </summary>
+        /// <param name="collection">The <see cref="TEntity"/> objects to remove from thedataset</param>
+        public void RemoveRange(IEnumerable<TEntity> collection)
+        {
+            foreach (TEntity obj in collection) Remove(obj);
+        }
+
+        /// <summary>
         /// Updates an Entity in the database, provided that none of the Primary
         /// keys were modified.
         /// </summary>
-        /// <param name="obj"></param>
-        /// <returns>The number of rows affected by this operation</returns>
-        public int Update(TEntity obj)
+        /// <param name="obj">The <see cref="TEntity"/> object to update in the dataset</param>
+        /// <returns>true if any records in the database were affected; false otherwise.</returns>
+        public bool Update(TEntity obj)
         {
             // Generate the SQL
             UpdateQueryBuilder builder = new UpdateQueryBuilder(EntityTable.TableName, Context);
@@ -235,7 +216,7 @@ namespace CrossLite
             }
 
             // Create the SQL Command
-            return builder.Execute();
+            return builder.Execute() == 1;
         }
 
         /// <summary>
@@ -258,14 +239,14 @@ namespace CrossLite
         /// </summary>
         /// <param name="entity">The entity object to reload attributes to</param>
         /// <returns>
-        /// Returns true if the entity was successfully retrieved from the databse 
-        /// and its attributes reloaded. False otherwise
+        /// true if the entity was successfully retrieved from the databse 
+        /// and its attributes reloaded; false otherwise
         /// </returns>
         public bool Reload(ref TEntity entity)
         {
             // Begin a new Select Query
             SelectQueryBuilder query = new SelectQueryBuilder(Context);
-            query.From(EntityTable.TableName).Select(EntityTable.Columns.Keys).Take(1);
+            query.From(EntityTable.TableName).SelectAll().Take(1);
 
             // Grab the primary keys
             foreach (string attrName in EntityTable.PrimaryKeys)

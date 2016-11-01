@@ -14,7 +14,7 @@ namespace CrossLite.QueryBuilder
     /// DbCommand object when using the BuildCommand() method. The Execute*() methods are 
     /// SQL injection safe and will properly escape attribute values in the query.
     /// ----
-    /// This is not a forward only builder, meaning you can call the methods in this class
+    /// This is bi-directional builder, meaning you can call the methods in this class
     /// in any order, and will still get the same output.
     /// ---
     /// </remarks>
@@ -80,12 +80,8 @@ namespace CrossLite.QueryBuilder
         }
 
         /// <summary>
-        /// Gets a sorted list of (TableName => SelectedIdentifiers[ColumnName => Identifier])
+        /// Gets a sorted list of selected tables
         /// </summary>
-        /// <remarks>
-        /// We use a SortedLists instead of dictionaries because we need to be able to access
-        /// values by their index, something Dictionaries cannot do efficiently.
-        /// </remarks>
         public List<TableIndentifier> Tables { get; set; }
 
         /// <summary>
@@ -389,7 +385,7 @@ namespace CrossLite.QueryBuilder
         /// last Select*() method.
         /// </summary>
         /// <param name="names"></param>
-        /// <remarks>This is an O(1) operation.</remarks>
+        /// <remarks>This is an O(n) operation; where n is the count of the params</remarks>
         public SelectQueryBuilder As(params string[] names)
         {
             // Attempt to grab working table

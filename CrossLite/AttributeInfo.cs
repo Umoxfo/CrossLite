@@ -52,5 +52,22 @@ namespace CrossLite
         /// If this attribute is a foreign key, then that information is stored here
         /// </summary>
         public ForeignKeyAttribute ForeignKey { get; internal set; }
+
+        public override string ToString() => Name;
+
+        public override bool Equals(object obj)
+        {
+            if (obj is AttributeInfo)
+            {
+                var item = (AttributeInfo)obj;
+                return item.Name.Equals(this.Name);
+            }
+            return false;
+        }
+
+        public override int GetHashCode()
+        {
+            return base.GetHashCode();
+        }
     }
 }

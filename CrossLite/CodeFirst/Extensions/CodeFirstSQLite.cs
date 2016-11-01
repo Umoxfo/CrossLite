@@ -49,9 +49,9 @@ namespace CrossLite.CodeFirst
                 sql.Append($"\t{context.QuoteIdentifier(colData.Key)} {pSqlType}");
 
                 // Primary Key and Unique column definition
-                if (info.AutoIncrement || (table.HasPrimaryKey && info.PrimaryKey))
+                if (info.AutoIncrement || (table.HasRowIdAlias && info.PrimaryKey))
                 {
-                    sql.AppendIf(table.HasPrimaryKey && info.PrimaryKey, $" PRIMARY KEY");
+                    sql.AppendIf(table.HasRowIdAlias && info.PrimaryKey, $" PRIMARY KEY");
                     sql.AppendIf(info.AutoIncrement && pSqlType == SQLiteDataType.INTEGER, " AUTOINCREMENT");
                 }
                 else if (info.Unique)
@@ -106,7 +106,7 @@ namespace CrossLite.CodeFirst
             // Composite Keys
             // -----------------------------------------
             string[] keys = table.PrimaryKeys.ToArray();
-            if (!table.HasPrimaryKey && keys.Length > 0)
+            if (!table.HasRowIdAlias && keys.Length > 0)
             {
                 sql.Append($"\tPRIMARY KEY(");
                 sql.Append(String.Join(", ", keys.Select(x => context.QuoteIdentifier(x))));

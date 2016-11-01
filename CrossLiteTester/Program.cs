@@ -84,19 +84,20 @@ namespace CrossLiteTester
                     // More dummy data
                     try
                     {
+                        // Test Row ID alias column
                         entity = new Account() { Name = "Sally" };
                         db.Users.Add(entity);
-                        var result1 = db.Users.Select(x => x).Where(x => x.Id == 2).ToList();
+                        var sally = db.Users.Select(x => x).Where(x => x.Id == 2).First();
 
                         // Query builder testing (Account entity name is "test" in the database)
                         var query = new SelectQueryBuilder(db);
                         query.From("test").SelectAll().Where("Id").Between(1, 2);
-                        var result2 = query.ExecuteQuery<Account>().ToList();
+                        var first = query.ExecuteQuery<Account>().First();
 
                         Console.WriteLine($"Success!");
                         Console.WriteLine();
-                        Console.WriteLine("Account ID #1 is: " + result2[0].Name);
-                        Console.WriteLine("Account ID #2 is: " + result1[0].Name);
+                        Console.WriteLine($"Account ID #{first.Id} is: {first.Name}");
+                        Console.WriteLine($"Account ID #{sally.Id} is: {sally.Name}");
                         Console.WriteLine();
                         Console.Write("Fetching data count...");
 
