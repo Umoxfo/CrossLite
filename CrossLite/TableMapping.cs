@@ -62,7 +62,7 @@ namespace CrossLite
 
         /// <summary>
         /// Contains a list of Foreign key relationships, where this Entity is a
-        /// child (Many) to a parent Entity (One)
+        /// child (Many) to a parent Entity (One). [Property => Generic Type]
         /// </summary>
         /// <remarks>
         /// Contains both Lazy loaded properties and Eager loaded properties.
@@ -71,7 +71,8 @@ namespace CrossLite
 
         /// <summary>
         /// Contains a list of Foreign key relationships, where this Entity is a
-        /// parent Entity (one) to many child Entities (many)
+        /// parent Entity (one) to many child Entities (many). 
+        /// [Property => Child Generic Type]
         /// </summary>
         internal Dictionary<PropertyInfo, Type> ChildRelationships { get; set; }
 
@@ -235,7 +236,9 @@ namespace CrossLite
                 var inverse = (InverseKeyAttribute)property.GetCustomAttribute(typeof(InverseKeyAttribute));
 
                 // Grab generic type
-                Type parentType = property.PropertyType.GetGenericArguments()[0];
+                Type parentType = (property.PropertyType.IsGenericType)
+                    ? property.PropertyType.GetGenericArguments()[0]
+                    : property.PropertyType;
 
                 // Create ForeignKeyInfo
                 InverseKeyAttribute inv = inverse ?? new InverseKeyAttribute(fkey.Attributes);

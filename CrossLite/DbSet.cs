@@ -78,9 +78,9 @@ namespace CrossLite
         }
 
         /// <summary>
-        /// Inserts a new Entity into the database. If the entity table has a single
-        /// integer primary key, the primary key value will be updated with the
-        /// <see cref="SQLiteConnection.LastInsertRowId"/>
+        /// Inserts a new Entity into the database, and sets any Foreign key properties. If the 
+        /// entity table has a single integer primary key, the primary key value will be updated 
+        /// with the <see cref="SQLiteConnection.LastInsertRowId"/>.
         /// </summary>
         /// <param name="obj">The <see cref="TEntity"/> object to add to the dataset</param>
         public void Add(TEntity obj)

@@ -149,28 +149,28 @@ namespace CrossLite
         /// <summary>
         /// Executes a statement on the database (Update, Delete, Insert)
         /// </summary>
-        /// <param name="Sql">The SQL statement to be executes</param>
+        /// <param name="sql">The SQL statement to be executes</param>
         /// <returns>Returns the number of rows affected by the statement</returns>
-        public int Execute(string Sql)
+        public int Execute(string sql)
         {
             // Create the SQL Command
-            using (SQLiteCommand Command = this.CreateCommand(Sql))
+            using (SQLiteCommand Command = this.CreateCommand(sql))
                 return Command.ExecuteNonQuery();
         }
 
         /// <summary>
         /// Executes a statement on the database (Update, Delete, Insert)
         /// </summary>
-        /// <param name="Sql">The SQL statement to be executed</param>
-        /// <param name="Params">A list of Sqlparameters</param>
+        /// <param name="sql">The SQL statement to be executed</param>
+        /// <param name="parameters">A list of Sqlparameters</param>
         /// <returns>Returns the number of rows affected by the statement</returns>
-        public int Execute(string Sql, List<DbParameter> Params)
+        public int Execute(string sql, List<DbParameter> parameters)
         {
             // Create the SQL Command
-            using (DbCommand Command = this.CreateCommand(Sql))
+            using (DbCommand Command = this.CreateCommand(sql))
             {
                 // Add params
-                foreach (DbParameter Param in Params)
+                foreach (DbParameter Param in parameters)
                     Command.Parameters.Add(Param);
 
                 // Execute command, and dispose of the command
@@ -181,22 +181,22 @@ namespace CrossLite
         /// <summary>
         /// Executes a statement on the database (Update, Delete, Insert)
         /// </summary>
-        /// <param name="Sql">The SQL statement to be executed</param>
-        /// <param name="Items">Additional parameters are parameter values for the query.
+        /// <param name="sql">The SQL statement to be executed</param>
+        /// <param name="items">Additional parameters are parameter values for the query.
         /// The first parameter replaces @P0, second @P1 etc etc.
         /// </param>
         /// <returns>Returns the number of rows affected by the statement</returns>
-        public int Execute(string Sql, params object[] Items)
+        public int Execute(string sql, params object[] items)
         {
             // Create the SQL Command
-            using (DbCommand Command = this.CreateCommand(Sql))
+            using (DbCommand Command = this.CreateCommand(sql))
             {
                 // Add params
-                for (int i = 0; i < Items.Length; i++)
+                for (int i = 0; i < items.Length; i++)
                 {
                     DbParameter Param = this.CreateParameter();
                     Param.ParameterName = "@P" + i;
-                    Param.Value = Items[i];
+                    Param.Value = items[i];
                     Command.Parameters.Add(Param);
                 }
 
@@ -209,12 +209,12 @@ namespace CrossLite
         /// Executes the query, and returns the first column of the first row in the result 
         /// set returned by the query. Additional columns or rows are ignored.
         /// </summary>
-        /// <param name="Sql">The SQL statement to be executed</param>
+        /// <param name="sql">The SQL statement to be executed</param>
         /// <returns></returns>
-        public object ExecuteScalar(string Sql)
+        public object ExecuteScalar(string sql)
         {
             // Create the SQL Command
-            using (DbCommand Command = this.CreateCommand(Sql))
+            using (DbCommand Command = this.CreateCommand(sql))
                 return Command.ExecuteScalar();
         }
 
@@ -222,16 +222,16 @@ namespace CrossLite
         /// Executes the query, and returns the first column of the first row in the result 
         /// set returned by the query. Additional columns or rows are ignored.
         /// </summary>
-        /// <param name="Sql">The SQL statement to be executed</param>
-        /// <param name="Params">A list of Sqlparameters</param>
+        /// <param name="sql">The SQL statement to be executed</param>
+        /// <param name="parameters">A list of Sqlparameters</param>
         /// <returns></returns>
-        public object ExecuteScalar(string Sql, IEnumerable<DbParameter> Params)
+        public object ExecuteScalar(string sql, IEnumerable<DbParameter> parameters)
         {
             // Create the SQL Command
-            using (DbCommand Command = this.CreateCommand(Sql))
+            using (DbCommand Command = this.CreateCommand(sql))
             {
                 // Add params
-                foreach (DbParameter Param in Params)
+                foreach (DbParameter Param in parameters)
                     Command.Parameters.Add(Param);
 
                 // Execute command, and dispose of the command
@@ -243,20 +243,20 @@ namespace CrossLite
         /// Executes the query, and returns the first column of the first row in the result 
         /// set returned by the query. Additional columns or rows are ignored.
         /// </summary>
-        /// <param name="Sql">The SQL statement to be executed</param>
-        /// <param name="Items"></param>
+        /// <param name="sql">The SQL statement to be executed</param>
+        /// <param name="items"></param>
         /// <returns></returns>
-        public object ExecuteScalar(string Sql, params object[] Items)
+        public object ExecuteScalar(string sql, params object[] items)
         {
             // Create the SQL Command
-            using (DbCommand Command = this.CreateCommand(Sql))
+            using (DbCommand Command = this.CreateCommand(sql))
             {
                 // Add params
-                for (int i = 0; i < Items.Length; i++)
+                for (int i = 0; i < items.Length; i++)
                 {
                     DbParameter Param = this.CreateParameter();
                     Param.ParameterName = "@P" + i;
-                    Param.Value = Items[i];
+                    Param.Value = items[i];
                     Command.Parameters.Add(Param);
                 }
 
@@ -269,18 +269,18 @@ namespace CrossLite
         /// Executes the query, and returns the first column of the first row in the result 
         /// set returned by the query. Additional columns or rows are ignored.
         /// </summary>
-        /// <param name="Sql">The SQL statement to be executed</param>
-        public T ExecuteScalar<T>(string Sql, params object[] Items) where T : IConvertible
+        /// <param name="sql">The SQL statement to be executed</param>
+        public T ExecuteScalar<T>(string sql, params object[] items) where T : IConvertible
         {
             // Create the SQL Command
-            using (DbCommand Command = this.CreateCommand(Sql))
+            using (DbCommand Command = this.CreateCommand(sql))
             {
                 // Add params
-                for (int i = 0; i < Items.Length; i++)
+                for (int i = 0; i < items.Length; i++)
                 {
                     DbParameter Param = this.CreateParameter();
                     Param.ParameterName = "@P" + i;
-                    Param.Value = Items[i];
+                    Param.Value = items[i];
                     Command.Parameters.Add(Param);
                 }
 
@@ -294,14 +294,14 @@ namespace CrossLite
         /// Executes the query, and returns the first column of the first row in the result 
         /// set returned by the query. Additional columns or rows are ignored.
         /// </summary>
-        /// <param name="Command">The SQL Command to run on this database</param>
-        public T ExecuteScalar<T>(DbCommand Command) where T : IConvertible
+        /// <param name="command">The SQL Command to run on this database</param>
+        public T ExecuteScalar<T>(DbCommand command) where T : IConvertible
         {
             // Create the SQL Command
-            using (Command)
+            using (command)
             {
                 // Execute command, and dispose of the command
-                object Value = Command.ExecuteScalar();
+                object Value = command.ExecuteScalar();
                 return (T)Convert.ChangeType(Value, typeof(T), CultureInfo.InvariantCulture);
             }
         }
@@ -313,41 +313,41 @@ namespace CrossLite
         /// <summary>
         /// Queries the database, and returns a result set
         /// </summary>
-        /// <param name="Sql">The SQL Statement to run on the database</param>
-        /// <param name="Params">Additional parameters are parameter values for the query.
+        /// <param name="sql">The SQL Statement to run on the database</param>
+        /// <param name="parameters">Additional parameters are parameter values for the query.
         /// The first parameter replaces @P0, second @P1 etc etc.
         /// </param>
         /// <returns></returns>
-        public IEnumerable<Dictionary<string, object>> Query(string Sql, params object[] Params)
+        public IEnumerable<Dictionary<string, object>> Query(string sql, params object[] parameters)
         {
-            var paramItems = new List<SQLiteParameter>(Params.Length);
-            for (int i = 0; i < Params.Length; i++)
+            var paramItems = new List<SQLiteParameter>(parameters.Length);
+            for (int i = 0; i < parameters.Length; i++)
             {
                 SQLiteParameter Param = this.CreateParameter();
                 Param.ParameterName = "@P" + i;
-                Param.Value = Params[i];
+                Param.Value = parameters[i];
                 paramItems.Add(Param);
             }
 
-            return this.Query(Sql, paramItems);
+            return this.Query(sql, paramItems);
         }
 
         /// <summary>
         /// Queries the database, and returns a result set
         /// </summary>
-        /// <param name="Sql">The SQL Statement to run on the database</param>
-        /// <param name="Params">A list of sql params to add to the command</param>
+        /// <param name="sql">The SQL Statement to run on the database</param>
+        /// <param name="parameters">A list of sql params to add to the command</param>
         /// <returns></returns>
-        public IEnumerable<Dictionary<string, object>> Query(string Sql, IEnumerable<SQLiteParameter> Params)
+        public IEnumerable<Dictionary<string, object>> Query(string sql, IEnumerable<SQLiteParameter> parameters)
         {
             // Create our Rows result
             var rows = new List<Dictionary<string, object>>();
 
             // Create the SQL Command
-            using (SQLiteCommand command = this.CreateCommand(Sql))
+            using (SQLiteCommand command = this.CreateCommand(sql))
             {
                 // Add params
-                foreach (SQLiteParameter Param in Params)
+                foreach (SQLiteParameter Param in parameters)
                     command.Parameters.Add(Param);
 
                 // Execute the query
@@ -376,42 +376,42 @@ namespace CrossLite
         /// <summary>
         /// Queries the database, and returns a result set
         /// </summary>
-        /// <param name="Sql">The SQL Statement to run on the database</param>
-        /// <param name="Params">Additional parameters are parameter values for the query.
+        /// <param name="sql">The SQL Statement to run on the database</param>
+        /// <param name="parameters">Additional parameters are parameter values for the query.
         /// The first parameter replaces @P0, second @P1 etc etc.
         /// </param>
         /// <returns></returns>
-        public IEnumerable<T> Query<T>(string Sql, params object[] Params) where T : class
+        public IEnumerable<T> Query<T>(string sql, params object[] parameters) where T : class
         {
-            var paramItems = new List<SQLiteParameter>(Params.Length);
-            for (int i = 0; i < Params.Length; i++)
+            var paramItems = new List<SQLiteParameter>(parameters.Length);
+            for (int i = 0; i < parameters.Length; i++)
             {
                 SQLiteParameter Param = this.CreateParameter();
                 Param.ParameterName = "@P" + i;
-                Param.Value = Params[i];
+                Param.Value = parameters[i];
                 paramItems.Add(Param);
             }
 
-            return this.Query<T>(Sql, paramItems);
+            return this.Query<T>(sql, paramItems);
         }
 
         /// <summary>
         /// Queries the database, and returns a result set
         /// </summary>
-        /// <param name="Sql">The SQL Statement to run on the database</param>
-        /// <param name="Params">A list of sql params to add to the command</param>
+        /// <param name="sql">The SQL Statement to run on the database</param>
+        /// <param name="parameters">A list of sql params to add to the command</param>
         /// <returns></returns>
-        public IEnumerable<T> Query<T>(string Sql, IEnumerable<SQLiteParameter> Params) where T : class
+        public IEnumerable<T> Query<T>(string sql, IEnumerable<SQLiteParameter> parameters) where T : class
         {
             // Get our Table Mapping
             Type objType = typeof(T);
             TableMapping table = EntityCache.GetTableMap(objType);
 
             // Create the SQL Command
-            using (SQLiteCommand command = this.CreateCommand(Sql))
+            using (SQLiteCommand command = this.CreateCommand(sql))
             {
                 // Add params
-                foreach (SQLiteParameter param in Params)
+                foreach (SQLiteParameter param in parameters)
                     command.Parameters.Add(param);
 
                 // Execute the query
