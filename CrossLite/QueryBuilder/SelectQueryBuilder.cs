@@ -56,7 +56,7 @@ namespace CrossLite.QueryBuilder
     ///     string query = builder.BuildQuery();
     ///     
     /// </example>
-    public class SelectQueryBuilder
+    public class SelectQueryBuilder : IDisposable
     {
         #region Public Properties
 
@@ -1056,6 +1056,18 @@ namespace CrossLite.QueryBuilder
         public IEnumerable<T> ExecuteQuery<T>() where T : class
         {
             return Context.ExecuteReader<T>(BuildCommand());
+        }
+
+        public void Dispose()
+        {
+            Tables = null;
+            Joins = null;
+            GroupByColumns = null;
+            OrderByStatements = null;
+            Unions = null;
+            WhereStatement = null;
+
+            GC.SuppressFinalize(this);
         }
     }
 }

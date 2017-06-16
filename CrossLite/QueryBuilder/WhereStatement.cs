@@ -166,6 +166,15 @@ namespace CrossLite.QueryBuilder
         }
 
         /// <summary>
+        /// Resets the current WHERE expressions
+        /// </summary>
+        public void Reset()
+        {
+            CurrentClause.Expressions.Clear();
+            Clauses.Clear();
+        }
+
+        /// <summary>
         /// Builds the current set of Clauses and returns the output as a string.
         /// </summary>
         /// <returns></returns>

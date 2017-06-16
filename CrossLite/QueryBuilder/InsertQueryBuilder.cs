@@ -13,7 +13,7 @@ namespace CrossLite.QueryBuilder
     /// be escaped by the underlaying SQLiteCommand object, making the Execute*() methods SQL injection 
     /// safe.
     /// </remarks>
-    public class InsertQueryBuilder : NonQueryBuilder
+    public class InsertQueryBuilder : NonQueryBuilder, IDisposable
     {
         /// <summary>
         /// A list of FieldValuePairs
@@ -163,6 +163,12 @@ namespace CrossLite.QueryBuilder
         {
             using (SQLiteCommand command = BuildCommand())
                 return command.ExecuteNonQuery();
+        }
+
+        public override void Dispose()
+        {
+            Columns = null;
+            GC.SuppressFinalize(this);
         }
 
         #endregion Query

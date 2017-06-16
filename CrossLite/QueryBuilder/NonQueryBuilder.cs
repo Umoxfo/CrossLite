@@ -1,11 +1,12 @@
-﻿using System.Data.SQLite;
+﻿using System;
+using System.Data.SQLite;
 
 namespace CrossLite.QueryBuilder
 {
     /// <summary>
     /// Provides an abstract interface for Non query builders (Insert, Update)
     /// </summary>
-    public abstract class NonQueryBuilder
+    public abstract class NonQueryBuilder : IDisposable
     {
         /// <summary>
         /// The database driver, if using the "BuildCommand" method
@@ -53,5 +54,7 @@ namespace CrossLite.QueryBuilder
         /// making this command SQL Injection safe.
         /// </summary>
         public abstract int Execute();
+
+        public abstract void Dispose();
     }
 }

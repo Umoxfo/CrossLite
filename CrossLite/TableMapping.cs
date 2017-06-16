@@ -45,6 +45,12 @@ namespace CrossLite
         public bool WithoutRowID { get; protected set; } = false;
 
         /// <summary>
+        /// If true, the <see cref="ForeignKey{TEntity}"/> attributes will be filled after insertion,
+        /// otherwise they are left null. There is a slight performance hit when true.
+        /// </summary>
+        public bool BuildInstanceForeignKeys { get; set; } = true;
+
+        /// <summary>
         /// Gets a collection of Column to Property mappings
         /// </summary>
         public IReadOnlyDictionary<string, AttributeInfo> Columns { get; protected set; }
@@ -99,6 +105,7 @@ namespace CrossLite
             {
                 this.TableName = tableAttr.Name ?? entityType.Name;
                 this.WithoutRowID = tableAttr.WithoutRowID;
+                this.BuildInstanceForeignKeys = tableAttr.BuildInstanceRelationships;
             }
 
             // Temporary variables
@@ -270,23 +277,26 @@ namespace CrossLite
         /// <param name="context">An open SQLite connection where this Entity can be stored/fetched from</param>
         internal void CreateRelationships(object entity, SQLiteContext context)
         {
-            // Fill Child ForeignKey<T> properties (Contains Parent Entities)
-            foreach (var parent in this.ParentRelationships)
+            if (BuildInstanceForeignKeys)
             {
-                Type fkT = typeof(ForeignKey<>).MakeGenericType(parent.Value);
-                dynamic fk = Activator.CreateInstance(fkT, entity, parent.Key, context);
-                if (parent.Key.PropertyType.IsGenericType)
-                    parent.Key.SetValue(entity, fk);
-                else
-                    parent.Key.SetValue(entity, fk.Fetch());
-            }
+                // Fill Child ForeignKey<T> properties (Contains Parent Entities)
+                foreach (var parent in this.ParentRelationships)
+                {
+                    Type fkT = typeof(ForeignKey<>).MakeGenericType(parent.Value);
+                    dynamic fk = Activator.CreateInstance(fkT, entity, parent.Key, context);
+                    if (parent.Key.PropertyType.IsGenericType)
+                        parent.Key.SetValue(entity, fk);
+                    else
+                        parent.Key.SetValue(entity, fk.Fetch());
+                }
 
-            // Fill Parent Entity IEnumerable<T> properties (Contains Child Entities)
-            foreach (var child in this.ChildRelationships)
-            {
-                Type ckT = typeof(ChildDbSet<,>).MakeGenericType(EntityType, child.Value);
-                var ck = Activator.CreateInstance(ckT, entity, context);
-                child.Key.SetValue(entity, ck);
+                // Fill Parent Entity IEnumerable<T> properties (Contains Child Entities)
+                foreach (var child in this.ChildRelationships)
+                {
+                    Type ckT = typeof(ChildDbSet<,>).MakeGenericType(EntityType, child.Value);
+                    var ck = Activator.CreateInstance(ckT, entity, context);
+                    child.Key.SetValue(entity, ck);
+                }
             }
         }
     }

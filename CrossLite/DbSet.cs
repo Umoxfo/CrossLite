@@ -64,6 +64,21 @@ namespace CrossLite
         public bool IsReadOnly => false;
 
         /// <summary>
+        /// A prepared Update query
+        /// </summary>
+        private PreparedNonQuery UpdateQuery { get; set; }
+
+        /// <summary>
+        /// A prepared Insert query
+        /// </summary>
+        private PreparedNonQuery InsertQuery { get; set; }
+
+        /// <summary>
+        /// A prepared Delete query
+        /// </summary>
+        private PreparedNonQuery DeleteQuery { get; set; }
+
+        /// <summary>
         /// Creates a new instance of <see cref="DbSet{TEntity}"/>
         /// </summary>
         /// <param name="context">An active SQLite connection</param>
@@ -82,6 +97,7 @@ namespace CrossLite
         /// entity table has a single integer primary key, the primary key value will be updated 
         /// with the <see cref="SQLiteConnection.LastInsertRowId"/>.
         /// </summary>
+        /// <remarks>This method utilizes the <see cref="PreparedNonQuery"/> to speed things along.</remarks>
         /// <param name="obj">The <see cref="TEntity"/> object to add to the dataset</param>
         public void Add(TEntity obj)
         {
@@ -89,53 +105,58 @@ namespace CrossLite
             AttributeInfo rowid = EntityTable.RowIdColumn;
 
             // Generate the SQL
-            InsertQueryBuilder builder = new InsertQueryBuilder(EntityTable.TableName, Context);
-            foreach (var attribute in EntityTable.Columns)
+            if (InsertQuery == null)
             {
-                // Grab value
-                PropertyInfo property = attribute.Value.Property;
-                bool isKey = attribute.Value.PrimaryKey;
-
-                // Check for integer primary keys
-                if (isKey && EntityTable.HasRowIdAlias && EntityTable.RowIdColumn == attribute.Value)
+                using (var query = new InsertQueryBuilder(EntityTable.TableName, Context))
                 {
-                    // A column with type INTEGER PRIMARY KEY is an alias for the 
-                    // ROWID (except in WITHOUT ROWID tables). Here is check for
-                    // auto assignment
-                    long id;
-                    var value = property.GetValue(obj);
-                    if (long.TryParse(value.ToString(), out id) && id != 0)
-                        builder.Set(attribute.Key, value);
+                    foreach (var attribute in EntityTable.Columns)
+                    {
+                        // Grab value
+                        PropertyInfo property = attribute.Value.Property;
+                        bool isKey = attribute.Value.PrimaryKey;
 
-                    continue;
+                        // Check for integer primary keys
+                        if (isKey && EntityTable.HasRowIdAlias && EntityTable.RowIdColumn == attribute.Value)
+                        {
+                            continue;
+                        }
+
+                        // Add attribute to the field list
+                        query.Set(attribute.Key, new SqlLiteral($"@{attribute.Key}"));
+                    }
+
+                    InsertQuery = new PreparedNonQuery(query.BuildCommand());
                 }
-
-                // Add attribute to the field list
-                builder.Set(attribute.Key, property.GetValue(obj));
             }
 
             // Execute the SQL Command
-            int result = builder.Execute();
-
-            // If the insert was successful, lets build our Entity relationships
-            if (result > 0)
+            lock (InsertQuery)
             {
-                // If we have a Primary key that is determined database side,
-                // than we can update the current object's key value here
-                if (EntityTable.HasRowIdAlias)
-                {
-                    long rowId = Context.Connection.LastInsertRowId;
-                    rowid.Property.SetValue(obj, Convert.ChangeType(rowId, rowid.Property.PropertyType));
-                }
+                InsertQuery.SetParameters(obj, EntityTable);
+                int result = InsertQuery.Execute();
 
-                // Build relationships after a fresh insert
-                EntityTable.CreateRelationships(obj, Context);
+
+                // If the insert was successful, lets build our Entity relationships
+                if (result > 0)
+                {
+                    // If we have a Primary key that is determined database side,
+                    // than we can update the current object's key value here
+                    if (EntityTable.HasRowIdAlias)
+                    {
+                        long rowId = Context.Connection.LastInsertRowId;
+                        rowid.Property.SetValue(obj, Convert.ChangeType(rowId, rowid.Property.PropertyType));
+                    }
+
+                    // Build relationships after a fresh insert
+                    EntityTable.CreateRelationships(obj, Context);
+                }
             }
         }
 
         /// <summary>
         /// Inserts a range of new Entities into the database
         /// </summary>
+        /// <remarks>This method utilizes the <see cref="PreparedNonQuery"/> to speed things along.</remarks>
         /// <param name="obj">The <see cref="TEntity"/> objects to add to the dataset</param>
         public void AddRange(params TEntity[] entities)
         {
@@ -145,6 +166,7 @@ namespace CrossLite
         /// <summary>
         /// Inserts a range of new Entities into the database
         /// </summary>
+        /// <remarks>This method utilizes the <see cref="PreparedNonQuery"/> to speed things along.</remarks>
         /// <param name="collection">The <see cref="TEntity"/> objects to add to the dataset</param>
         public void AddRange(IEnumerable<TEntity> collection)
         {
@@ -154,27 +176,39 @@ namespace CrossLite
         /// <summary>
         /// Deletes an Entity from the database
         /// </summary>
+        /// <remarks>This method utilizes the <see cref="PreparedNonQuery"/> to speed things along.</remarks>
         /// <param name="obj">The <see cref="TEntity"/> object to remove from the dataset</param>
         /// <returns>true if an entity was removed from the dataset; false otherwise.</returns>
         public bool Remove(TEntity obj)
         {
-            // Start the query using a query builder
-            var builder = new DeleteQueryBuilder(Context).From(EntityTable.TableName);
-
-            // build the where statement, using primary keys only
-            foreach (string keyName in EntityTable.PrimaryKeys)
+            // Generate the SQL
+            if (DeleteQuery == null)
             {
-                PropertyInfo info = EntityTable.Columns[keyName].Property;
-                builder.Where(keyName, Comparison.Equals, info.GetValue(obj));
+                // Start the query using a query builder
+                var builder = new DeleteQueryBuilder(Context).From(EntityTable.TableName);
+
+                // build the where statement, using primary keys only
+                foreach (string keyName in EntityTable.PrimaryKeys)
+                {
+                    PropertyInfo info = EntityTable.Columns[keyName].Property;
+                    builder.Where(keyName, Comparison.Equals, new SqlLiteral($"@{keyName}"));
+                }
+
+                DeleteQuery = new PreparedNonQuery(builder.BuildCommand());
             }
 
-            // Execute the command
-            return builder.Execute() > 0;
+            // Execute the SQL Command
+            lock (DeleteQuery)
+            {
+                DeleteQuery.SetParameters(obj, EntityTable);
+                return DeleteQuery.Execute() > 0;
+            }
         }
 
         /// <summary>
         /// Deletes a range of new Entities into the database
         /// </summary>
+        /// <remarks>This method utilizes the <see cref="PreparedNonQuery"/> to speed things along.</remarks>
         /// <param name="obj">The <see cref="TEntity"/> objects to remove from the dataset</param>
         public void RemoveRange(params TEntity[] entities)
         {
@@ -184,6 +218,7 @@ namespace CrossLite
         /// <summary>
         /// Deletes a range of new Entities into the database
         /// </summary>
+        /// <remarks>This method utilizes the <see cref="PreparedNonQuery"/> to speed things along.</remarks>
         /// <param name="collection">The <see cref="TEntity"/> objects to remove from thedataset</param>
         public void RemoveRange(IEnumerable<TEntity> collection)
         {
@@ -194,29 +229,41 @@ namespace CrossLite
         /// Updates an Entity in the database, provided that none of the Primary
         /// keys were modified.
         /// </summary>
+        /// <remarks>This method utilizes the <see cref="PreparedNonQuery"/> to speed things along.</remarks>
         /// <param name="obj">The <see cref="TEntity"/> object to update in the dataset</param>
         /// <returns>true if any records in the database were affected; false otherwise.</returns>
         public bool Update(TEntity obj)
         {
-            // Generate the SQL
-            UpdateQueryBuilder builder = new UpdateQueryBuilder(EntityTable.TableName, Context);
-            foreach (var attribute in EntityTable.Columns)
+            if (UpdateQuery == null)
             {
-                // Keys go in the WHERE statement, not the SET statement
-                if (EntityTable.PrimaryKeys.Contains(attribute.Key))
+                using (var updateQuery = new UpdateQueryBuilder(EntityTable.TableName, Context))
                 {
-                    PropertyInfo info = attribute.Value.Property;
-                    builder.Where(attribute.Key, Comparison.Equals, info.GetValue(obj));
-                }
-                else
-                {
-                    object value = attribute.Value.Property.GetValue(obj);
-                    builder.Set(attribute.Key, value);
+
+                    // Generate the SQL
+                    foreach (var attribute in EntityTable.Columns)
+                    {
+                        // Keys go in the WHERE statement, not the SET statement
+                        if (EntityTable.PrimaryKeys.Contains(attribute.Key))
+                        {
+                            PropertyInfo info = attribute.Value.Property;
+                            updateQuery.Where(attribute.Key, Comparison.Equals, new SqlLiteral($"@{attribute.Key}"));
+                        }
+                        else
+                        {
+                            updateQuery.Set(attribute.Key, new SqlLiteral($"@{attribute.Key}"));
+                        }
+                    }
+
+                    UpdateQuery = new PreparedNonQuery(updateQuery.BuildCommand());
                 }
             }
 
-            // Create the SQL Command
-            return builder.Execute() == 1;
+            lock (UpdateQuery)
+            {
+                // Update parameters and execute the SQL Command
+                UpdateQuery.SetParameters(obj, EntityTable);
+                return UpdateQuery.Execute() == 1;
+            }
         }
 
         /// <summary>

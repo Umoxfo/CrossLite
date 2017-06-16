@@ -12,7 +12,7 @@ namespace CrossLite.QueryBuilder
     /// By using the BuildCommand() method, all parameters in the WHERE statement will be 
     /// escaped by the underlaying SQLiteCommand object, making the Execute() method SQL injection safe.
     /// </remarks>
-    public class UpdateQueryBuilder : NonQueryBuilder
+    public class UpdateQueryBuilder : NonQueryBuilder, IDisposable
     {
         /// <summary>
         /// A list of FieldValuePairs
@@ -159,7 +159,7 @@ namespace CrossLite.QueryBuilder
         /// </summary>
         /// <param name="buildCommand"></param>
         /// <returns></returns>
-        protected object BuildQuery(bool buildCommand)
+        protected object BuildQuery(bool buildCommand, bool useNamedParams = false)
         {
             // Make sure we have a valid DB driver
             if (buildCommand && Context == null)
@@ -267,6 +267,14 @@ namespace CrossLite.QueryBuilder
                 case ValueMode.Multiply: return "*";
                 case ValueMode.Subtract: return "-";
             }
+        }
+
+        public override void Dispose()
+        {
+            WhereStatement = null;
+            Columns = null;
+
+            GC.SuppressFinalize(this);
         }
 
         /// <summary>

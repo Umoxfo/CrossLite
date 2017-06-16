@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text;
 using CrossLite.CodeFirst;
+using CrossLite.QueryBuilder;
 
 namespace CrossLite
 {
@@ -529,6 +530,80 @@ namespace CrossLite
 
         #endregion Query Methods
 
+        #region Indexing Methods
+
+        /// <summary>
+        /// Creates an index with the specified name on the specified table
+        /// </summary>
+        /// <param name="name"></param>
+        /// <param name="table"></param>
+        /// <param name="cols"></param>
+        /// <param name="options"></param>
+        /// <param name="where"></param>
+        public void CreateIndex(string name, string table, IndexedColumn[] cols, IndexCreationOptions options, WhereStatement where = null)
+        {
+            // -----------------------------------------
+            // Begin the SQL generation
+            // -----------------------------------------
+            StringBuilder sql = new StringBuilder("CREATE ", 256);
+            sql.AppendIf(options.HasFlag(IndexCreationOptions.Unique), "UNIQUE ");
+            sql.Append("INDEX ");
+            sql.AppendIf(options.HasFlag(IndexCreationOptions.IfNotExists), "IF NOT EXISTS ");
+
+            // Append index name
+            sql.Append($"{name} ON ");
+            sql.Append(QuoteIdentifier(table, this.IdentifierQuoteMode, this.IdentifierQuoteKind));
+            sql.Append("(");
+
+            // Append columns
+            int i = cols.Length;
+            foreach (var col in cols)
+            {
+                --i;
+                sql.Append(QuoteIdentifier(col.Name, this.IdentifierQuoteMode, this.IdentifierQuoteKind));
+                sql.AppendIf(col.Collate != Collation.Default, $" COLLATE {col.Collate.ToString().ToUpperInvariant()}");
+                sql.AppendIf(col.SortOrder == Sorting.Descending, " DESC");
+                sql.AppendIf(i > 0, ", ");
+            }
+
+            // Close
+            sql.Append(")");
+
+            // Add where if we have one
+            if (where != null)
+            {
+                sql.Append(" WHERE ");
+                sql.Append(where.BuildStatement());
+            }
+
+            // -----------------------------------------
+            // Execute the command on the database
+            // -----------------------------------------
+            using (SQLiteCommand command = CreateCommand(sql.ToString()))
+            {
+                command.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>
+        /// Drops an index with the specified name from the database. 
+        /// </summary>
+        /// <param name="name"></param>
+        public void DropIndex(string name)
+        {
+            string sql = $"DROP INDEX IF EXISTS {this.QuoteIdentifier(name)}";
+
+            // -----------------------------------------
+            // Execute the command on the database
+            // -----------------------------------------
+            using (SQLiteCommand command = CreateCommand(sql.ToString()))
+            {
+                command.ExecuteNonQuery();
+            }
+        }
+
+        #endregion Indexing Methods
+
         #region Helper Methods
 
         /// <summary>
@@ -772,7 +847,7 @@ namespace CrossLite
         /// <returns></returns>
         public static bool IsKeyword(string value)
         {
-            return Keywords.FindIndex(x => x.Equals(value, StringComparison.OrdinalIgnoreCase)) >= 0;
+            return Keywords.Contains(value);
         }
 
         /// <summary>
@@ -783,7 +858,7 @@ namespace CrossLite
         private static bool ContainsKeyword(string[] values)
         {
             foreach (var key in values)
-                if (Keywords.FindIndex(x => x.Equals(key, StringComparison.OrdinalIgnoreCase)) >= 0)
+                if (Keywords.Contains(key))
                     return true;
 
             return false;
@@ -804,133 +879,135 @@ namespace CrossLite
         /// <summary>
         /// Gets or sets the list of SQLite reserved keywords
         /// </summary>
-        public static List<string> Keywords = new List<string>(new string[] 
-        {
-            "ABORT",
-            "ACTION",
-            "ADD",
-            "AFTER",
-            "ALL",
-            "ALTER",
-            "ANALYZE",
-            "AND",
-            "AS",
-            "ASC",
-            "ATTACH",
-            "AUTOINCREMENT",
-            "BEFORE",
-            "BEGIN",
-            "BETWEEN",
-            "BY",
-            "CASCADE",
-            "CASE",
-            "CAST",
-            "CHECK",
-            "COLLATE",
-            "COLUMN",
-            "COMMIT",
-            "CONFLICT",
-            "CONSTRAINT",
-            "CREATE",
-            "CROSS",
-            "CURRENT_DATE",
-            "CURRENT_TIME",
-            "CURRENT_TIMESTAMP",
-            "DATABASE",
-            "DEFAULT",
-            "DEFERRABLE",
-            "DEFERRED",
-            "DELETE",
-            "DESC",
-            "DETACH",
-            "DISTINCT",
-            "DROP",
-            "EACH",
-            "ELSE",
-            "END",
-            "ESCAPE",
-            "EXCEPT",
-            "EXCLUSIVE",
-            "EXISTS",
-            "EXPLAIN",
-            "FAIL",
-            "FOR",
-            "FOREIGN",
-            "FROM",
-            "FULL",
-            "GLOB",
-            "GROUP",
-            "HAVING",
-            "IF",
-            "IGNORE",
-            "IMMEDIATE",
-            "IN",
-            "INDEX",
-            "INDEXED",
-            "INITIALLY",
-            "INNER",
-            "INSERT",
-            "INSTEAD",
-            "INTERSECT",
-            "INTO",
-            "IS",
-            "ISNULL",
-            "JOIN",
-            "KEY",
-            "LEFT",
-            "LIKE",
-            "LIMIT",
-            "MATCH",
-            "NATURAL",
-            "NO",
-            "NOT",
-            "NOTNULL",
-            "NULL",
-            "OF",
-            "OFFSET",
-            "ON",
-            "OR",
-            "ORDER",
-            "OUTER",
-            "PLAN",
-            "PRAGMA",
-            "PRIMARY",
-            "QUERY",
-            "RAISE",
-            "RECURSIVE",
-            "REFERENCES",
-            "REGEXP",
-            "REINDEX",
-            "RELEASE",
-            "RENAME",
-            "REPLACE",
-            "RESTRICT",
-            "RIGHT",
-            "ROLLBACK",
-            "ROW",
-            "SAVEPOINT",
-            "SELECT",
-            "SET",
-            "TABLE",
-            "TEMP",
-            "TEMPORARY",
-            "THEN",
-            "TO",
-            "TRANSACTION",
-            "TRIGGER",
-            "UNION",
-            "UNIQUE",
-            "UPDATE",
-            "USING",
-            "VACUUM",
-            "VALUES",
-            "VIEW",
-            "VIRTUAL",
-            "WHEN",
-            "WHERE",
-            "WITH",
-            "WITHOUT",
-        });
+        public static HashSet<string> Keywords = new HashSet<string>(new string[] 
+            {
+                "ABORT",
+                "ACTION",
+                "ADD",
+                "AFTER",
+                "ALL",
+                "ALTER",
+                "ANALYZE",
+                "AND",
+                "AS",
+                "ASC",
+                "ATTACH",
+                "AUTOINCREMENT",
+                "BEFORE",
+                "BEGIN",
+                "BETWEEN",
+                "BY",
+                "CASCADE",
+                "CASE",
+                "CAST",
+                "CHECK",
+                "COLLATE",
+                "COLUMN",
+                "COMMIT",
+                "CONFLICT",
+                "CONSTRAINT",
+                "CREATE",
+                "CROSS",
+                "CURRENT_DATE",
+                "CURRENT_TIME",
+                "CURRENT_TIMESTAMP",
+                "DATABASE",
+                "DEFAULT",
+                "DEFERRABLE",
+                "DEFERRED",
+                "DELETE",
+                "DESC",
+                "DETACH",
+                "DISTINCT",
+                "DROP",
+                "EACH",
+                "ELSE",
+                "END",
+                "ESCAPE",
+                "EXCEPT",
+                "EXCLUSIVE",
+                "EXISTS",
+                "EXPLAIN",
+                "FAIL",
+                "FOR",
+                "FOREIGN",
+                "FROM",
+                "FULL",
+                "GLOB",
+                "GROUP",
+                "HAVING",
+                "IF",
+                "IGNORE",
+                "IMMEDIATE",
+                "IN",
+                "INDEX",
+                "INDEXED",
+                "INITIALLY",
+                "INNER",
+                "INSERT",
+                "INSTEAD",
+                "INTERSECT",
+                "INTO",
+                "IS",
+                "ISNULL",
+                "JOIN",
+                "KEY",
+                "LEFT",
+                "LIKE",
+                "LIMIT",
+                "MATCH",
+                "NATURAL",
+                "NO",
+                "NOT",
+                "NOTNULL",
+                "NULL",
+                "OF",
+                "OFFSET",
+                "ON",
+                "OR",
+                "ORDER",
+                "OUTER",
+                "PLAN",
+                "PRAGMA",
+                "PRIMARY",
+                "QUERY",
+                "RAISE",
+                "RECURSIVE",
+                "REFERENCES",
+                "REGEXP",
+                "REINDEX",
+                "RELEASE",
+                "RENAME",
+                "REPLACE",
+                "RESTRICT",
+                "RIGHT",
+                "ROLLBACK",
+                "ROW",
+                "SAVEPOINT",
+                "SELECT",
+                "SET",
+                "TABLE",
+                "TEMP",
+                "TEMPORARY",
+                "THEN",
+                "TO",
+                "TRANSACTION",
+                "TRIGGER",
+                "UNION",
+                "UNIQUE",
+                "UPDATE",
+                "USING",
+                "VACUUM",
+                "VALUES",
+                "VIEW",
+                "VIRTUAL",
+                "WHEN",
+                "WHERE",
+                "WITH",
+                "WITHOUT",
+            }, 
+            StringComparer.OrdinalIgnoreCase
+        );
 
         #endregion
     }
